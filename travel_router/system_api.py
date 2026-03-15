@@ -463,9 +463,11 @@ def _spawn_mpv(play_url: str, start_time: int = 0) -> dict:
     command = [
         "mpv",
         "--fs",
+        "--hwdec=auto",
         f"--input-ipc-server={MPV_SOCKET}",
         "--idle=yes",
     ]
+    print("-------- MPV Command: \n", " ".join(command))
     if start_time > 0:
         command.append(f"--start={start_time}")
     command.append(play_url)
