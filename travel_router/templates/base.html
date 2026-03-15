@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pi Travel Router</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-block">
+        <h1>Pi Travel Router</h1>
+      </div>
+      <div class="nav-scroll nav-desktop">
+        <nav>
+          <a href="{{ url_for('router.index') }}">Home</a>
+          <a href="{{ url_for('router.media') }}">Media</a>
+          <a href="{{ url_for('router.remote') }}">Remote</a>
+          <a href="{{ url_for('router.settings_page') }}">Settings</a>
+        </nav>
+      </div>
+    </header>
+    <main class="layout">
+      {% block content %}{% endblock %}
+    </main>
+    <nav class="mobile-tabbar">
+      <a href="{{ url_for('router.index') }}">Home</a>
+      <a href="{{ url_for('router.media') }}">Media</a>
+      <a href="{{ url_for('router.remote') }}">Remote</a>
+      <a href="{{ url_for('router.settings_page') }}">Settings</a>
+    </nav>
+  </body>
+</html>

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="card hero page-hero">
+    <div class="hero-copy">
+      <h2>Settings</h2>
+    </div>
+    <div class="hero-side">
+      <div class="mini-stat">
+        <span class="mini-stat-label">Tailscale</span>
+        <strong>{{ tailscale_data.BackendState or 'Unknown' }}</strong>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-stat-label">Jellyfin</span>
+        <strong>{{ jellyfin_info.data.ServerName if jellyfin_info.ok else 'Not set' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid settings-grid">
+    <article class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Tailscale</p>
+          <h3>{{ tailscale_data.Self.HostName if tailscale_data.Self else 'Not connected yet' }}</h3>
+        </div>
+        <span class="status-chip">{{ tailscale_data.BackendState or 'Unknown' }}</span>
+      </div>
+
+      <form method="post" action="{{ url_for('router.settings_tailscale_login') }}" class="stack">
+        <button type="submit">Log in to Tailscale</button>
+      </form>
+
+      <form method="post" action="{{ url_for('router.settings_tailscale') }}" class="stack toggle-form">
+        <label class="switch-row">
+          <span>Use exit node</span>
+          <input type="checkbox" name="use_exit_node" {% if selected_exit_node %}checked{% endif %}>
+        </label>
+        <label>
+          Exit node
+          <select name="exit_node">
+            <option value="">Select node</option>
+            {% for node in exit_nodes %}
+              <option value="{{ node.value }}" {% if selected_exit_node == node.value %}selected{% endif %}>
+                {{ node.label }}{% if node.online %} · online{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="secondary">Save Tailscale settings</button>
+      </form>
+
+      <details class="log-panel">
+        <summary>Output</summary>
+        <pre class="terminal">{{ tailscale.stdout or tailscale.stderr or 'No Tailscale data yet.' }}</pre>
+      </details>
+    </article>
+
+    <article class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Jellyfin</p>
+          <h3>{{ jellyfin_info.data.ServerName if jellyfin_info.ok else 'Media server settings' }}</h3>
+        </div>
+        {% if jellyfin_info.ok %}
+          <span class="status-chip">{{ jellyfin_info.data.Version }}</span>
+        {% endif %}
+      </div>
+
+      {% if not jellyfin_info.ok %}
+        <p class="muted">{{ jellyfin_info.error or 'Configure Jellyfin below.' }}</p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('router.jellyfin_settings') }}" class="stack">
+        <label>
+          Server URL
+          <input type="url" name="server_url" value="{{ settings.jellyfin.server_url }}" placeholder="http://100.x.x.x:8096">
+        </label>
+        <label>
+          API key
+          <input type="password" name="api_key" value="{{ settings.jellyfin.api_key }}">
+        </label>
+        <label>
+          User ID
+          <input type="text" name="user_id" value="{{ settings.jellyfin.user_id }}">
+        </label>
+        <label>
+          Device name
+          <input type="text" name="device_name" value="{{ settings.jellyfin.device_name }}">
+        </label>
+        <button type="submit">Save Jellyfin settings</button>
+      </form>
+    </article>
+  </section>
+{% endblock %}

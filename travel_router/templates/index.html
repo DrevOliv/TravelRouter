@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="card hero page-hero">
+    <div class="hero-copy">
+      <h2>Wi-Fi</h2>
+    </div>
+    <div class="hero-side">
+      <div class="mini-stat">
+        <span class="mini-stat-label">Connected</span>
+        <strong>{{ wifi_current.ssid if wifi_current.connected else 'Not connected' }}</strong>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-stat-label">Upstream NIC</span>
+        <strong>{{ settings.wifi.upstream_interface }}</strong>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-stat-label">Private AP</span>
+        <strong>{{ settings.wifi.ap_interface }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="card">
+      <h3>Current network</h3>
+      {% if wifi_current.connected %}
+        <ul class="status-list compact-list">
+          <li>
+            <span>SSID</span>
+            <strong class="ok">{{ wifi_current.ssid }}</strong>
+          </li>
+          <li>
+            <span>Signal</span>
+            <strong>{{ wifi_current.signal }}%</strong>
+          </li>
+          <li>
+            <span>Security</span>
+            <strong>{{ wifi_current.security }}</strong>
+          </li>
+        </ul>
+      {% elif wifi_current.ok %}
+        <p class="muted">No upstream Wi-Fi connected.</p>
+      {% else %}
+        <p class="muted">{{ wifi_current.error }}</p>
+      {% endif %}
+    </article>
+
+    <article class="card">
+      <h3>Wi-Fi settings</h3>
+      <form method="post" action="{{ url_for('router.wifi_settings') }}" class="stack">
+        <label>
+          Upstream interface
+          <input type="text" name="upstream_interface" value="{{ settings.wifi.upstream_interface }}">
+        </label>
+        <label>
+          AP interface
+          <input type="text" name="ap_interface" value="{{ settings.wifi.ap_interface }}">
+        </label>
+        <button type="submit">Save interfaces</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h3>Service status</h3>
+      <ul class="status-list">
+        {% for name, result in services.items() %}
+          <li>
+            <span>{{ name }}</span>
+            <strong class="{{ 'ok' if result.ok and result.stdout == 'active' else 'warn' }}">
+              {{ result.stdout or result.stderr or 'unknown' }}
+            </strong>
+          </li>
+        {% endfor %}
+      </ul>
+    </article>
+  </section>
+
+  <section class="grid">
+    <article class="card">
+      <h3>Nearby Wi-Fi networks</h3>
+      <p class="muted">Scanning via <code>{{ settings.wifi.upstream_interface }}</code></p>
+      <pre class="terminal">{{ wifi_scan.stdout or wifi_scan.stderr or 'No scan data yet.' }}</pre>
+      <form method="post" action="{{ url_for('router.wifi_connect') }}" class="stack">
+        <label>
+          SSID
+          <input type="text" name="ssid" placeholder="HotelWiFi">
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" placeholder="Optional for open networks">
+        </label>
+        <button type="submit">Connect upstream Wi-Fi</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h3>Quick links</h3>
+      <div class="stack quick-links">
+        <a class="button" href="{{ url_for('router.captive_portal') }}">Captive Portal</a>
+        <a class="button" href="{{ url_for('router.settings_page') }}">Settings</a>
+        <a class="button secondary" href="{{ url_for('router.media') }}">Media</a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

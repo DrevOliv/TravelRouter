@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="card hero page-hero">
+    <div class="hero-copy">
+      <h2>Remote</h2>
+    </div>
+    <div class="hero-side">
+      <div class="mini-stat">
+        <span class="mini-stat-label">Playback</span>
+        <strong>{{ 'Active' if playback_state.ok else 'Idle' }}</strong>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-stat-label">Resume</span>
+        <strong>{{ playback_state.resume_seconds or 0 }}s</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="card now-playing">
+    {% if playback_state.ok %}
+      <div class="playback-meta">
+        <div>
+          <h3>{{ playback_state.active_item_id or 'Active stream' }}</h3>
+          <p class="muted">
+            {% if playback_state.duration %}
+              {{ playback_state.time_pos }}s / {{ playback_state.duration }}s
+            {% else %}
+              Position {{ playback_state.time_pos }}s
+            {% endif %}
+          </p>
+        </div>
+        <span class="status-chip">{{ 'Paused' if playback_state.paused else 'Playing' }}</span>
+      </div>
+    {% else %}
+      <p class="muted">{{ playback_state.error or 'No active playback session yet.' }}</p>
+      {% if playback_state.resume_seconds %}
+        <p class="muted">Latest saved resume point: {{ playback_state.resume_seconds }} seconds.</p>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="remote-grid">
+      <form method="post" action="{{ url_for('router.remote_rewind') }}">
+        <button type="submit">-30s</button>
+      </form>
+      <form method="post" action="{{ url_for('router.remote_pause') }}">
+        <button type="submit">Pause / Resume</button>
+      </form>
+      <form method="post" action="{{ url_for('router.remote_forward') }}">
+        <button type="submit">+30s</button>
+      </form>
+      <form method="post" action="{{ url_for('router.remote_stop') }}">
+        <button type="submit" class="danger">Stop</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="grid remote-settings-grid">
+    <article class="card">
+      <h3>Audio language</h3>
+      <form method="post" action="{{ url_for('router.remote_audio') }}" class="stack">
+        <label>
+          Active audio track
+          <select name="track_id">
+            {% for track in playback_state.audio_tracks or [] %}
+              <option value="{{ track.id }}" {% if track.selected %}selected{% endif %}>
+                {{ track.lang|upper }} - {{ track.title }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit">Switch audio</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h3>Subtitles</h3>
+      <form method="post" action="{{ url_for('router.remote_subtitles') }}" class="stack">
+        <label>
+          Subtitle track
+          <select name="track_id">
+            <option value="no">Off</option>
+            {% for track in playback_state.subtitle_tracks or [] %}
+              <option value="{{ track.id }}" {% if track.selected %}selected{% endif %}>
+                {{ track.lang|upper }} - {{ track.title }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit">Apply subtitles</button>
+      </form>
+    </article>
+  </section>
+{% endblock %}
