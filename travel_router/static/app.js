@@ -5,6 +5,8 @@ const SCREEN_TITLES = {
   settings: "Settings",
 };
 
+let mediaSearchTimer = null;
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -48,23 +50,26 @@ function getApiUrl(screen) {
 }
 
 function updateFeedback(payload) {
-  const banner = document.querySelector("[data-feedback]");
-  if (!banner) return;
+  if (!payload) return;
+  showToast(payload);
+}
 
-  if (!payload) {
-    banner.hidden = true;
-    banner.className = "feedback-banner";
-    banner.innerHTML = "";
-    return;
-  }
+function showToast(payload) {
+  const stack = document.querySelector("[data-toast-stack]");
+  if (!stack) return;
 
-  banner.hidden = false;
-  banner.className = `feedback-banner ${payload.ok ? "success" : "error"}`;
+  const toast = document.createElement("section");
+  toast.className = `toast ${payload.ok ? "success" : "error"}`;
   const detail = payload.detail ? `<p>${escapeHtml(payload.detail)}</p>` : "";
   const link = payload.link
     ? `<p><a href="${escapeAttr(payload.link)}" target="_blank" rel="noopener noreferrer">Open link</a></p>`
     : "";
-  banner.innerHTML = `<div><strong>${escapeHtml(payload.message || "")}</strong>${detail}${link}</div>`;
+  toast.innerHTML = `<div><strong>${escapeHtml(payload.message || "")}</strong>${detail}${link}</div>`;
+  stack.appendChild(toast);
+
+  window.setTimeout(() => {
+    toast.remove();
+  }, 2600);
 }
 
 function updateNavState(screen) {
@@ -186,7 +191,7 @@ function renderHome(data) {
       </div>
     </section>
 
-    <section class="grid">
+    <section class="grid dashboard-grid">
       <article class="card">
         <h3>Current network</h3>
         ${currentNetworkHtml}
@@ -196,21 +201,11 @@ function renderHome(data) {
         <h3>Service status</h3>
         <ul class="status-list">${servicesHtml}</ul>
       </article>
-    </section>
 
-    <section class="grid">
-      <article class="card">
+      <article class="card card-wide">
         <h3>Nearby Wi-Fi networks</h3>
         <p class="muted">Scanning via <code>${escapeHtml(settings.wifi?.upstream_interface || "wlan0")}</code></p>
         ${wifiNetworksHtml}
-      </article>
-
-      <article class="card">
-        <h3>Quick links</h3>
-        <div class="stack quick-links">
-          <a class="button" href="/settings" data-nav-link>Settings</a>
-          <a class="button secondary" href="/media" data-nav-link>Media</a>
-        </div>
       </article>
     </section>
   `;
@@ -343,10 +338,12 @@ function renderSettings(data) {
 function renderMedia(data) {
   const items = data.items || {};
   const list = items.data?.Items || [];
+  const rootLabel = data.parent_id ? "Collection" : "Library";
+  const itemCount = list.length;
 
   const itemsHtml = items.ok
     ? `
-      <div class="poster-grid">
+      <div class="media-grid">
         ${list
           .map((item) => {
             const resumeTicks = item.UserData?.PlaybackPositionTicks || 0;
@@ -356,7 +353,7 @@ function renderMedia(data) {
             const isFolder = ["CollectionFolder", "UserView", "Series", "Season", "BoxSet"].includes(item.Type);
 
             return `
-              <article class="poster-card">
+              <article class="media-card">
                 <div class="poster-frame">
                   <img src="${escapeAttr(item.image_url)}" alt="${escapeAttr(item.Name)} poster" loading="lazy">
                   ${
@@ -375,10 +372,13 @@ function renderMedia(data) {
                     ${resumeMinutes ? `<span class="resume-badge">Resume ${escapeHtml(resumeMinutes)}m</span>` : ""}
                   </div>
                 </div>
-                <div class="poster-body">
-                  <h3>${escapeHtml(item.Name)}</h3>
-                  <p class="poster-meta">${escapeHtml(item.Type)}</p>
-                  <div class="poster-actions">
+                <div class="media-card-body">
+                  <div class="media-card-copy">
+                    <p class="media-kicker">${escapeHtml(isFolder ? "Browse" : item.Type)}</p>
+                    <h3>${escapeHtml(item.Name)}</h3>
+                    <p class="media-meta">${escapeHtml(isFolder ? "Open collection" : (resumeMinutes ? `Resume at ${resumeMinutes} min` : "Ready to play"))}</p>
+                  </div>
+                  <div class="media-card-actions">
                     ${
                       isFolder
                         ? `<a class="button secondary" href="/media?parent_id=${encodeURIComponent(item.Id)}" data-nav-link>Open</a>`
@@ -398,27 +398,36 @@ function renderMedia(data) {
       </div>
     `
     : `
-      <section class="card empty-state">
-        <h3>${escapeHtml(items.configured ? "Jellyfin unreachable" : "Library unavailable")}</h3>
+      <section class="card media-empty-state">
+        <p class="eyebrow">Media</p>
+        <h3>${escapeHtml(items.configured ? "Jellyfin is unreachable" : "Library unavailable")}</h3>
         <p>${escapeHtml(items.error || "Could not load the library.")}</p>
       </section>
     `;
 
   return `
-    <section class="hero media-hero page-hero">
-      <div class="hero-copy">
-        <h2>Media</h2>
-      </div>
-      ${!items.ok ? `<div class="hero-side"><div class="mini-stat"><span class="mini-stat-label">Jellyfin</span><strong>${escapeHtml(items.configured ? "Unreachable" : "Not set")}</strong></div></div>` : ""}
-      <form class="toolbar media-search" data-nav-form="media">
-        <input type="text" name="q" value="${escapeAttr(data.search_term || "")}" placeholder="Search">
-        <input type="hidden" name="parent_id" value="${escapeAttr(data.parent_id || "")}">
-        <button type="submit">Search</button>
-      </form>
+    <section class="media-shell">
+      <section class="media-heading">
+        <div class="media-heading-copy">
+          <p class="eyebrow">${escapeHtml(rootLabel)}</p>
+          <h2>${escapeHtml(data.search_term ? `Results for "${data.search_term}"` : (data.parent_id ? "Collection view" : "Media library"))}</h2>
+          <p class="media-subcopy">${escapeHtml(items.ok ? `${itemCount} item${itemCount === 1 ? "" : "s"} available` : "Check Jellyfin connection and try again.")}</p>
+        </div>
+      </section>
+
+      <section class="card media-toolbar">
+        <form class="media-search-bar" data-nav-form="media" data-live-search="media">
+          <input type="text" name="q" value="${escapeAttr(data.search_term || "")}" placeholder="Search movies, shows, collections" autocomplete="off">
+          <input type="hidden" name="parent_id" value="${escapeAttr(data.parent_id || "")}">
+          <button type="submit">Search</button>
+        </form>
+        <div class="media-toolbar-links">
+          ${data.parent_id ? `<a class="pill-link" href="/media" data-nav-link>Back to library</a>` : ""}
+        </div>
+      </section>
     </section>
 
     <section class="media-shelf">
-      ${data.parent_id ? `<a class="pill-link" href="/media" data-nav-link>Back to library</a>` : ""}
       ${itemsHtml}
     </section>
   `;
@@ -533,10 +542,13 @@ function renderScreen(screen, payload) {
   root.innerHTML = renderHome(payload);
 }
 
-async function loadCurrentScreen() {
+async function loadCurrentScreen(options = {}) {
+  const { silent = false } = options;
   const screen = getScreenFromPath(window.location.pathname);
   updateNavState(screen);
-  renderLoading();
+  if (!silent) {
+    renderLoading();
+  }
 
   try {
     const response = await fetch(getApiUrl(screen), {
@@ -554,8 +566,21 @@ async function loadCurrentScreen() {
 function navigate(url) {
   const nextUrl = new URL(url, window.location.origin);
   window.history.pushState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
-  updateFeedback(null);
   loadCurrentScreen();
+}
+
+function triggerLiveMediaSearch(form) {
+  const data = new FormData(form);
+  const query = new URLSearchParams();
+  for (const [key, value] of data.entries()) {
+    const text = String(value).trim();
+    if (text) query.set(key, text);
+  }
+  const nextUrl = query.toString() ? `/media?${query.toString()}` : "/media";
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
+  if (nextUrl === currentUrl) return;
+  window.history.replaceState({}, "", nextUrl);
+  loadCurrentScreen({ silent: true });
 }
 
 async function hydrateJellyfinStatus() {
@@ -611,13 +636,12 @@ async function hydrateJellyfinStatus() {
   }
 }
 
-function setActionState(action, ok) {
-  document.querySelectorAll("[data-action]").forEach((el) => {
-    el.classList.remove("is-success");
-    if (ok && el.dataset.action === action) {
-      el.classList.add("is-success");
-    }
-  });
+function flashActionSuccess(target, ok) {
+  if (!(target instanceof HTMLElement) || !ok) return;
+  target.classList.add("did-succeed");
+  window.setTimeout(() => {
+    target.classList.remove("did-succeed");
+  }, 1800);
 }
 
 async function submitApiForm(form, submitter) {
@@ -640,9 +664,9 @@ async function submitApiForm(form, submitter) {
     });
     const payload = await response.json();
     updateFeedback(payload);
-    setActionState(payload.action, payload.ok);
+    flashActionSuccess(submitter, payload.ok);
     if (payload.ok && payload.refresh && payload.refresh === getScreenFromPath(window.location.pathname)) {
-      await loadCurrentScreen();
+      await loadCurrentScreen({ silent: true });
     }
   } catch (error) {
     updateFeedback({ ok: false, message: "Request failed", detail: String(error) });
@@ -729,6 +753,19 @@ function handleClick(event) {
   }
 }
 
+function handleInput(event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  const form = input.closest('form[data-live-search="media"]');
+  if (!(form instanceof HTMLFormElement)) return;
+  if (input.name !== "q") return;
+
+  window.clearTimeout(mediaSearchTimer);
+  mediaSearchTimer = window.setTimeout(() => {
+    triggerLiveMediaSearch(form);
+  }, 220);
+}
+
 function handleSubmit(event) {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
@@ -755,9 +792,9 @@ function handleSubmit(event) {
 }
 
 document.addEventListener("click", handleClick);
+document.addEventListener("input", handleInput);
 document.addEventListener("submit", handleSubmit);
 window.addEventListener("popstate", () => {
-  updateFeedback(null);
   loadCurrentScreen();
 });
 document.addEventListener("DOMContentLoaded", loadMeta);
