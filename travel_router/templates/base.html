@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pi Travel Router</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -21,6 +22,21 @@
       </div>
     </header>
     <main class="layout">
+      {% if ui_feedback %}
+        <section class="feedback-banner {{ 'success' if ui_feedback.ok else 'error' }}" data-feedback>
+          <div>
+            <strong>{{ ui_feedback.message }}</strong>
+            {% if ui_feedback.detail %}
+              <p>{{ ui_feedback.detail }}</p>
+            {% endif %}
+            {% if ui_feedback.link %}
+              <p><a href="{{ ui_feedback.link }}" target="_blank" rel="noopener noreferrer">Open link</a></p>
+            {% endif %}
+          </div>
+        </section>
+      {% else %}
+        <section class="feedback-banner" data-feedback hidden></section>
+      {% endif %}
       {% block content %}{% endblock %}
     </main>
     <nav class="mobile-tabbar">

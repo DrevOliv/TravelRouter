@@ -47,21 +47,6 @@
     </article>
 
     <article class="card">
-      <h3>Wi-Fi settings</h3>
-      <form method="post" action="{{ url_for('router.wifi_settings') }}" class="stack">
-        <label>
-          Upstream interface
-          <input type="text" name="upstream_interface" value="{{ settings.wifi.upstream_interface }}">
-        </label>
-        <label>
-          AP interface
-          <input type="text" name="ap_interface" value="{{ settings.wifi.ap_interface }}">
-        </label>
-        <button type="submit">Save interfaces</button>
-      </form>
-    </article>
-
-    <article class="card">
       <h3>Service status</h3>
       <ul class="status-list">
         {% for name, result in services.items() %}
@@ -81,7 +66,7 @@
       <h3>Nearby Wi-Fi networks</h3>
       <p class="muted">Scanning via <code>{{ settings.wifi.upstream_interface }}</code></p>
       <pre class="terminal">{{ wifi_scan.stdout or wifi_scan.stderr or 'No scan data yet.' }}</pre>
-      <form method="post" action="{{ url_for('router.wifi_connect') }}" class="stack">
+      <form method="post" action="{{ url_for('router.wifi_connect') }}" class="stack" data-async-form>
         <label>
           SSID
           <input type="text" name="ssid" placeholder="HotelWiFi">
@@ -90,14 +75,13 @@
           Password
           <input type="password" name="password" placeholder="Optional for open networks">
         </label>
-        <button type="submit">Connect upstream Wi-Fi</button>
+        <button type="submit" data-action="wifi_connect" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'wifi_connect' and ui_feedback.ok else '' }}">Connect upstream Wi-Fi</button>
       </form>
     </article>
 
     <article class="card">
       <h3>Quick links</h3>
       <div class="stack quick-links">
-        <a class="button" href="{{ url_for('router.captive_portal') }}">Captive Portal</a>
         <a class="button" href="{{ url_for('router.settings_page') }}">Settings</a>
         <a class="button secondary" href="{{ url_for('router.media') }}">Media</a>
       </div>

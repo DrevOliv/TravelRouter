@@ -31,12 +31,6 @@ A lightweight Raspberry Pi travel router and entertainment center built on Raspb
 
 - `mpv`
 - `ffmpeg`
-- `chromium-browser`
-- `xvfb`
-- `openbox`
-- `x11vnc`
-- `novnc`
-- `websockify`
 
 ### Python web app
 
@@ -65,7 +59,7 @@ A lightweight Raspberry Pi travel router and entertainment center built on Raspb
 
 ```bash
 sudo apt update
-sudo apt install -y network-manager hostapd dnsmasq iptables-persistent mpv ffmpeg chromium-browser xvfb openbox x11vnc novnc websockify python3 python3-venv python3-pip curl
+sudo apt install -y network-manager hostapd dnsmasq iptables-persistent mpv ffmpeg python3 python3-venv python3-pip curl
 curl -fsSL https://tailscale.com/install.sh | sh
 ```
 
@@ -233,6 +227,5 @@ sudo systemctl enable --now pi-travel-router.service
 ## Notes
 
 - Many hotel Wi-Fi networks use captive portals. The Pi may need a one-time browser login before routing works.
-- The captive-portal flow in this project is designed to run Chromium on the Pi and expose it remotely in your browser via noVNC, so the hotel network authenticates the Pi rather than your laptop.
 - Some USB Wi-Fi adapters do not support AP mode. Check before buying.
 - You should lock down the web UI before exposing it beyond your private travel SSID.

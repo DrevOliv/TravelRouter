@@ -106,6 +106,29 @@ a,
   padding-bottom: 2rem;
 }
 
+.feedback-banner {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+}
+
+.feedback-banner.success {
+  background: rgba(24, 114, 85, 0.22);
+  border-color: rgba(79, 209, 160, 0.4);
+}
+
+.feedback-banner.error {
+  background: rgba(128, 38, 50, 0.22);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.feedback-banner p {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -220,6 +243,13 @@ button.secondary {
   color: var(--ink);
 }
 
+button.is-success,
+.button.is-success {
+  background: linear-gradient(135deg, #1ea971, #157a5d);
+  color: white;
+  border: 1px solid rgba(110, 231, 183, 0.28);
+}
+
 button.danger {
   background: var(--danger);
 }
@@ -292,20 +322,6 @@ button.danger {
 .media-shelf {
   display: grid;
   gap: 1rem;
-}
-
-.portal-actions,
-.portal-shell {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.portal-frame {
-  width: 100%;
-  min-height: 78vh;
-  border: 0;
-  border-radius: 14px;
-  background: #0a0f18;
 }
 
 .pill-link {

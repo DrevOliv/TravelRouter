@@ -21,17 +21,38 @@
     <article class="card">
       <div class="section-head">
         <div>
+          <p class="eyebrow">Wi-Fi</p>
+          <h3>Interface mapping</h3>
+        </div>
+      </div>
+
+      <form method="post" action="{{ url_for('router.wifi_settings') }}" class="stack" data-async-form>
+        <label>
+          Upstream interface
+          <input type="text" name="upstream_interface" value="{{ settings.wifi.upstream_interface }}">
+        </label>
+        <label>
+          AP interface
+          <input type="text" name="ap_interface" value="{{ settings.wifi.ap_interface }}">
+        </label>
+        <button type="submit" data-action="wifi_settings" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'wifi_settings' and ui_feedback.ok else '' }}">Save Wi-Fi settings</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <div class="section-head">
+        <div>
           <p class="eyebrow">Tailscale</p>
           <h3>{{ tailscale_data.Self.HostName if tailscale_data.Self else 'Not connected yet' }}</h3>
         </div>
         <span class="status-chip">{{ tailscale_data.BackendState or 'Unknown' }}</span>
       </div>
 
-      <form method="post" action="{{ url_for('router.settings_tailscale_login') }}" class="stack">
-        <button type="submit">Log in to Tailscale</button>
+      <form method="post" action="{{ url_for('router.settings_tailscale_login') }}" class="stack" data-async-form>
+        <button type="submit" data-action="tailscale_login" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'tailscale_login' and ui_feedback.ok else '' }}">Log in to Tailscale</button>
       </form>
 
-      <form method="post" action="{{ url_for('router.settings_tailscale') }}" class="stack toggle-form">
+      <form method="post" action="{{ url_for('router.settings_tailscale') }}" class="stack toggle-form" data-async-form>
         <label class="switch-row">
           <span>Use exit node</span>
           <input type="checkbox" name="use_exit_node" {% if selected_exit_node %}checked{% endif %}>
@@ -47,7 +68,7 @@
             {% endfor %}
           </select>
         </label>
-        <button type="submit" class="secondary">Save Tailscale settings</button>
+        <button type="submit" data-action="tailscale_settings" class="secondary {{ 'is-success' if ui_feedback and ui_feedback.action == 'tailscale_settings' and ui_feedback.ok else '' }}">Save Tailscale settings</button>
       </form>
 
       <details class="log-panel">
@@ -71,7 +92,7 @@
         <p class="muted">{{ jellyfin_info.error or 'Configure Jellyfin below.' }}</p>
       {% endif %}
 
-      <form method="post" action="{{ url_for('router.jellyfin_settings') }}" class="stack">
+      <form method="post" action="{{ url_for('router.jellyfin_settings') }}" class="stack" data-async-form>
         <label>
           Server URL
           <input type="url" name="server_url" value="{{ settings.jellyfin.server_url }}" placeholder="http://100.x.x.x:8096">
@@ -88,7 +109,7 @@
           Device name
           <input type="text" name="device_name" value="{{ settings.jellyfin.device_name }}">
         </label>
-        <button type="submit">Save Jellyfin settings</button>
+        <button type="submit" data-action="jellyfin_settings" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'jellyfin_settings' and ui_feedback.ok else '' }}">Save Jellyfin settings</button>
       </form>
     </article>
   </section>

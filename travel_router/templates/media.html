@@ -40,11 +40,11 @@
                 {% if item.Type in ['CollectionFolder', 'UserView', 'Series', 'Season', 'BoxSet'] %}
                   <a class="button secondary" href="{{ url_for('router.media', parent_id=item.Id) }}">Open</a>
                 {% else %}
-                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}">
+                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}" data-async-form>
                     <input type="hidden" name="resume" value="true">
-                    <button type="submit">Play</button>
+                    <button type="submit" data-action="media_play" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'media_play' and ui_feedback.ok else '' }}">Play</button>
                   </form>
-                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}">
+                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}" data-async-form>
                     <input type="hidden" name="resume" value="false">
                     <button type="submit" class="secondary">From start</button>
                   </form>

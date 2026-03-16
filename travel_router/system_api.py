@@ -1,12 +1,9 @@
 import json
-import os
 import re
 import shlex
 import socket
 import subprocess
-import time
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
 
@@ -15,48 +12,6 @@ from .config_store import load_config, save_config
 
 MPV_SOCKET = "/tmp/pi-travel-router-mpv.sock"
 URL_PATTERN = re.compile(r"https://\S+")
-CAPTIVE_CHECK_URL = "http://neverssl.com/"
-PORTAL_DISPLAY = ":99"
-PORTAL_RFB_PORT = 5901
-PORTAL_WEB_PORT = 6080
-PORTAL_STATE_PATH = Path(__file__).resolve().parent.parent / "data" / "portal_state.json"
-PORTAL_PROFILE_DIR = Path("/tmp/pi-travel-router-chromium")
-PORTAL_PROCESSES = {
-    "xvfb": {
-        "pid_file": Path("/tmp/pi-travel-router-xvfb.pid"),
-        "command": ["Xvfb", PORTAL_DISPLAY, "-screen", "0", "1440x900x24"],
-    },
-    "openbox": {
-        "pid_file": Path("/tmp/pi-travel-router-openbox.pid"),
-        "command": ["openbox"],
-        "env": {"DISPLAY": PORTAL_DISPLAY},
-    },
-    "chromium": {
-        "pid_file": Path("/tmp/pi-travel-router-chromium.pid"),
-    },
-    "x11vnc": {
-        "pid_file": Path("/tmp/pi-travel-router-x11vnc.pid"),
-        "command": [
-            "x11vnc",
-            "-display",
-            PORTAL_DISPLAY,
-            "-forever",
-            "-shared",
-            "-rfbport",
-            str(PORTAL_RFB_PORT),
-            "-nopw",
-        ],
-    },
-    "websockify": {
-        "pid_file": Path("/tmp/pi-travel-router-websockify.pid"),
-        "command": [
-            "websockify",
-            "--web=/usr/share/novnc",
-            str(PORTAL_WEB_PORT),
-            f"127.0.0.1:{PORTAL_RFB_PORT}",
-        ],
-    },
-}
 
 
 def run_command(command: list[str]) -> dict:
@@ -147,172 +102,6 @@ def current_wifi(interface: str) -> dict:
         }
 
     return {"ok": True, "connected": False, "ssid": "", "signal": "", "security": ""}
-
-
-def detect_captive_portal() -> dict:
-    try:
-        response = requests.get(
-            CAPTIVE_CHECK_URL,
-            allow_redirects=True,
-            timeout=20,
-            headers={"User-Agent": "PiTravelRouter/1.0"},
-        )
-    except requests.RequestException as exc:
-        return {"ok": False, "error": str(exc)}
-
-    final_url = response.url
-    expected_host = urlparse(CAPTIVE_CHECK_URL).netloc
-    final_host = urlparse(final_url).netloc
-    captive = final_host != expected_host or "login" in final_url.lower() or "portal" in final_url.lower()
-
-    return {
-        "ok": True,
-        "captive": captive,
-        "final_url": final_url,
-        "status_code": response.status_code,
-    }
-
-
-def _read_portal_state() -> dict:
-    if not PORTAL_STATE_PATH.exists():
-        return {"start_url": "", "last_detected_url": "", "last_status": ""}
-    with PORTAL_STATE_PATH.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _write_portal_state(state: dict) -> None:
-    PORTAL_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with PORTAL_STATE_PATH.open("w", encoding="utf-8") as handle:
-        json.dump(state, handle, indent=2)
-
-
-def _pid_is_running(pid: int) -> bool:
-    try:
-        Path(f"/proc/{pid}").exists()
-        os.kill(pid, 0)
-        return True
-    except Exception:
-        return False
-
-
-def _read_pid(pid_file: Path) -> int | None:
-    if not pid_file.exists():
-        return None
-    try:
-        return int(pid_file.read_text(encoding="utf-8").strip())
-    except (TypeError, ValueError):
-        return None
-
-
-def _write_pid(pid_file: Path, pid: int) -> None:
-    pid_file.write_text(str(pid), encoding="utf-8")
-
-
-def _start_process(name: str, command: list[str], env_overrides: dict | None = None) -> dict:
-    pid_file = PORTAL_PROCESSES[name]["pid_file"]
-    existing_pid = _read_pid(pid_file)
-    if existing_pid and _pid_is_running(existing_pid):
-        return {"ok": True, "stdout": f"{name} already running", "stderr": "", "command": " ".join(command)}
-
-    env = dict(os.environ)
-    if env_overrides:
-        env.update(env_overrides)
-
-    try:
-        proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
-    except FileNotFoundError:
-        return {"ok": False, "stdout": "", "stderr": f"Missing command: {command[0]}", "command": " ".join(command)}
-
-    _write_pid(pid_file, proc.pid)
-    return {"ok": True, "stdout": f"Started {name}", "stderr": "", "command": " ".join(command)}
-
-
-def _stop_process(name: str) -> None:
-    pid_file = PORTAL_PROCESSES[name]["pid_file"]
-    pid = _read_pid(pid_file)
-    if not pid:
-        return
-    try:
-        os.kill(pid, 15)
-    except OSError:
-        pass
-    pid_file.unlink(missing_ok=True)
-
-
-def portal_browser_status(host: str = "127.0.0.1") -> dict:
-    state = _read_portal_state()
-    processes = {}
-    running = False
-    for name, meta in PORTAL_PROCESSES.items():
-        pid = _read_pid(meta["pid_file"])
-        alive = bool(pid and _pid_is_running(pid))
-        processes[name] = {"pid": pid, "running": alive}
-        running = running or alive
-
-    viewer_url = f"http://{host}:{PORTAL_WEB_PORT}/vnc.html?autoconnect=true&resize=scale&path=websockify"
-    return {
-        "ok": True,
-        "running": running,
-        "processes": processes,
-        "viewer_url": viewer_url,
-        "start_url": state.get("start_url", ""),
-        "last_detected_url": state.get("last_detected_url", ""),
-        "last_status": state.get("last_status", ""),
-    }
-
-
-def start_portal_browser() -> dict:
-    detection = detect_captive_portal()
-    if not detection["ok"]:
-        return {"ok": False, "stdout": "", "stderr": detection["error"], "command": "portal-browser"}
-
-    start_url = detection["final_url"] if detection.get("captive") else CAPTIVE_CHECK_URL
-    state = _read_portal_state()
-    state["start_url"] = start_url
-    state["last_detected_url"] = detection["final_url"]
-    state["last_status"] = "Portal found" if detection.get("captive") else "No captive portal detected"
-    _write_portal_state(state)
-
-    PORTAL_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
-    steps = [
-        _start_process("xvfb", PORTAL_PROCESSES["xvfb"]["command"]),
-        _start_process("openbox", PORTAL_PROCESSES["openbox"]["command"], PORTAL_PROCESSES["openbox"].get("env")),
-    ]
-    time.sleep(1)
-    chromium_command = [
-        "chromium-browser",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--disable-session-crashed-bubble",
-        "--disable-infobars",
-        "--kiosk",
-        f"--user-data-dir={PORTAL_PROFILE_DIR}",
-        start_url,
-    ]
-    steps.append(_start_process("chromium", chromium_command, {"DISPLAY": PORTAL_DISPLAY}))
-    time.sleep(1)
-    steps.append(_start_process("x11vnc", PORTAL_PROCESSES["x11vnc"]["command"]))
-    steps.append(_start_process("websockify", PORTAL_PROCESSES["websockify"]["command"]))
-
-    failed = next((step for step in steps if not step["ok"]), None)
-    if failed:
-        return failed
-
-    return {
-        "ok": True,
-        "stdout": f"Started remote browser at {start_url}",
-        "stderr": "",
-        "command": "portal-browser",
-        "start_url": start_url,
-        "portal_detected": detection.get("captive", False),
-    }
-
-
-def stop_portal_browser() -> dict:
-    for name in ["websockify", "x11vnc", "chromium", "openbox", "xvfb"]:
-        _stop_process(name)
-    return {"ok": True, "stdout": "Stopped remote browser session", "stderr": "", "command": "portal-browser"}
 
 
 def tailscale_status() -> dict:

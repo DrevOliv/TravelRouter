@@ -1,6 +1,6 @@
 import json
 
-from flask import Blueprint, redirect, render_template, request, url_for
+from flask import Blueprint, redirect, render_template, request, session, url_for
 
 from .system_api import (
     all_resume_seconds,
@@ -14,13 +14,10 @@ from .system_api import (
     load_settings,
     pause_playback,
     play_jellyfin_item,
-    portal_browser_status,
     scan_wifi,
     seek_relative,
     set_audio_track,
-    start_portal_browser,
     set_subtitle_track,
-    stop_portal_browser,
     stop_playback,
     systemctl_status,
     tailscale_disable_exit_node,
@@ -33,6 +30,41 @@ from .system_api import (
 
 
 bp = Blueprint("router", __name__)
+
+
+def remember_feedback(action: str, ok: bool, message: str, detail: str = "", link: str = "") -> None:
+    session["ui_feedback"] = {
+        "action": action,
+        "ok": ok,
+        "message": message,
+        "detail": detail,
+        "link": link,
+    }
+
+
+def wants_json() -> bool:
+    accept = request.headers.get("Accept", "")
+    return "application/json" in accept or request.headers.get("X-Requested-With") == "fetch"
+
+
+def json_or_redirect(action: str, ok: bool, message: str, detail: str = "", link: str = "", default_endpoint: str = "router.index"):
+    if wants_json():
+        return {
+            "ok": ok,
+            "action": action,
+            "message": message,
+            "detail": detail,
+            "link": link,
+        }
+    remember_feedback(action, ok, message, detail, link)
+    return redirect_back(default_endpoint)
+
+
+def redirect_back(default_endpoint: str):
+    target = request.referrer
+    if target:
+        return redirect(target)
+    return redirect(url_for(default_endpoint))
 
 
 def parse_tailscale_json(result: dict) -> dict:
@@ -98,27 +130,14 @@ def wifi_connect():
         request.form.get("ssid", "").strip(),
         request.form.get("password", "").strip() or None,
     )
-    return render_template("action.html", title="Wi-Fi Connect", result=result)
-
-
-@bp.route("/portal")
-def captive_portal():
-    portal = portal_browser_status(request.host.split(":")[0])
-    return render_template("portal.html", portal=portal)
-
-
-@bp.route("/portal/start", methods=["POST"])
-def captive_portal_start():
-    result = start_portal_browser()
-    return render_template("action.html", title="Start Captive Portal Browser", result=result)
-
-
-@bp.route("/portal/stop", methods=["POST"])
-def captive_portal_stop():
-    stop_portal_browser()
-    portal = portal_browser_status(request.host.split(":")[0])
-    return render_template("portal.html", portal=portal)
-
+    ssid = request.form.get("ssid", "").strip() or "network"
+    return json_or_redirect(
+        "wifi_connect",
+        result["ok"],
+        f"Connected to {ssid}" if result["ok"] else "Wi-Fi connection failed",
+        result["stderr"] or result["stdout"],
+        default_endpoint="router.index",
+    )
 
 
 @bp.route("/settings/wifi", methods=["POST"])
@@ -130,7 +149,7 @@ def wifi_settings():
             "ap_interface": request.form.get("ap_interface", "wlan1").strip(),
         },
     )
-    return redirect(url_for("router.index"))
+    return json_or_redirect("wifi_settings", True, "Wi-Fi interfaces saved", default_endpoint="router.settings_page")
 
 
 @bp.route("/tailscale/up", methods=["POST"])
@@ -139,20 +158,26 @@ def vpn_up():
     result = tailscale_up(exit_node)
     if exit_node:
         update_settings("tailscale", {"current_exit_node": exit_node})
-    return render_template("action.html", title="Tailscale Up", result=result)
+    return json_or_redirect(
+        "tailscale_up",
+        result["ok"],
+        "Tailscale updated" if result["ok"] else "Tailscale update failed",
+        result["stderr"] or result["stdout"],
+        default_endpoint="router.settings_page",
+    )
 
 
 @bp.route("/tailscale/down", methods=["POST"])
 def vpn_down():
     result = tailscale_down()
-    return render_template("action.html", title="Tailscale Down", result=result)
+    return json_or_redirect("tailscale_down", result["ok"], "Tailscale disconnected" if result["ok"] else "Tailscale disconnect failed", result["stderr"] or result["stdout"], default_endpoint="router.settings_page")
 
 
 @bp.route("/tailscale/exit-node/disable", methods=["POST"])
 def vpn_exit_node_disable():
     result = tailscale_disable_exit_node()
     update_settings("tailscale", {"current_exit_node": ""})
-    return render_template("action.html", title="Disable Exit Node", result=result)
+    return json_or_redirect("tailscale_disable", result["ok"], "Exit node disabled" if result["ok"] else "Failed to disable exit node", result["stderr"] or result["stdout"], default_endpoint="router.settings_page")
 
 
 @bp.route("/settings/jellyfin", methods=["POST"])
@@ -166,7 +191,7 @@ def jellyfin_settings():
             "device_name": request.form.get("device_name", "Pi Travel Router").strip(),
         },
     )
-    return redirect(url_for("router.settings_page"))
+    return json_or_redirect("jellyfin_settings", True, "Jellyfin settings saved", default_endpoint="router.settings_page")
 
 
 @bp.route("/settings")
@@ -190,7 +215,14 @@ def settings_page():
 @bp.route("/settings/tailscale/login", methods=["POST"])
 def settings_tailscale_login():
     result = tailscale_login()
-    return render_template("action.html", title="Tailscale Login", result=result)
+    return json_or_redirect(
+        "tailscale_login",
+        result["ok"],
+        "Tailscale login started" if result["ok"] else "Tailscale login failed",
+        "Open the login link to finish authentication." if result.get("auth_url") else result["stderr"] or result["stdout"],
+        result.get("auth_url", ""),
+        default_endpoint="router.settings_page",
+    )
 
 
 @bp.route("/settings/tailscale", methods=["POST"])
@@ -199,8 +231,7 @@ def settings_tailscale():
     exit_node = request.form.get("exit_node", "").strip()
 
     if use_exit_node and not exit_node:
-        result = {"ok": False, "stdout": "", "stderr": "Choose an exit node before enabling it.", "command": "tailscale"}
-        return render_template("action.html", title="Tailscale Settings", result=result)
+        return json_or_redirect("tailscale_settings", False, "Choose an exit node first", default_endpoint="router.settings_page")
 
     if use_exit_node:
         result = tailscale_up(exit_node)
@@ -210,7 +241,13 @@ def settings_tailscale():
         result = tailscale_disable_exit_node()
         if result["ok"]:
             update_settings("tailscale", {"current_exit_node": ""})
-    return render_template("action.html", title="Tailscale Settings", result=result)
+    return json_or_redirect(
+        "tailscale_settings",
+        result["ok"],
+        "Tailscale settings saved" if result["ok"] else "Tailscale settings failed",
+        result["stderr"] or result["stdout"],
+        default_endpoint="router.settings_page",
+    )
 
 
 @bp.route("/media")
@@ -242,7 +279,7 @@ def media():
 def media_play(item_id: str):
     resume = request.form.get("resume", "true").lower() == "true"
     result = play_jellyfin_item(item_id, resume=resume)
-    return render_template("action.html", title="Play Media", result=result)
+    return json_or_redirect("media_play", result["ok"], "Playback started" if result["ok"] else "Playback failed", result["stderr"] or result["stdout"], default_endpoint="router.media")
 
 
 @bp.route("/remote")
@@ -253,32 +290,35 @@ def remote():
 
 @bp.route("/remote/pause", methods=["POST"])
 def remote_pause():
-    return render_template("action.html", title="Pause / Resume", result=pause_playback())
+    result = pause_playback()
+    return json_or_redirect("remote_pause", result["ok"], "Playback toggled" if result["ok"] else "Pause failed", result["stderr"] or result["stdout"], default_endpoint="router.remote")
 
 
 @bp.route("/remote/stop", methods=["POST"])
 def remote_stop():
-    return render_template("action.html", title="Stop Playback", result=stop_playback())
+    result = stop_playback()
+    return json_or_redirect("remote_stop", result["ok"], "Playback stopped" if result["ok"] else "Stop failed", result["stderr"] or result["stdout"], default_endpoint="router.remote")
 
 
 @bp.route("/remote/rewind", methods=["POST"])
 def remote_rewind():
-    return render_template("action.html", title="Rewind Playback", result=seek_relative(-30))
+    result = seek_relative(-30)
+    return json_or_redirect("remote_rewind", result["ok"], "Rewound 30 seconds" if result["ok"] else "Rewind failed", result["stderr"] or result["stdout"], default_endpoint="router.remote")
 
 
 @bp.route("/remote/forward", methods=["POST"])
 def remote_forward():
-    return render_template("action.html", title="Forward Playback", result=seek_relative(30))
+    result = seek_relative(30)
+    return json_or_redirect("remote_forward", result["ok"], "Skipped forward 30 seconds" if result["ok"] else "Skip failed", result["stderr"] or result["stdout"], default_endpoint="router.remote")
 
 
 @bp.route("/remote/audio", methods=["POST"])
 def remote_audio():
     track_id = request.form.get("track_id", "").strip()
     if not track_id:
-        result = {"ok": False, "stdout": "", "stderr": "No audio track selected", "command": "mpv-ipc"}
-        return render_template("action.html", title="Change Audio Track", result=result)
+        return json_or_redirect("remote_audio", False, "No audio track selected", default_endpoint="router.remote")
     result = set_audio_track(int(track_id))
-    return render_template("action.html", title="Change Audio Track", result=result)
+    return json_or_redirect("remote_audio", result["ok"], "Audio track changed" if result["ok"] else "Audio track change failed", result["stderr"] or result["stdout"], default_endpoint="router.remote")
 
 
 @bp.route("/remote/subtitles", methods=["POST"])
@@ -286,4 +326,4 @@ def remote_subtitles():
     track_id = request.form.get("track_id", "no").strip()
     value = "no" if track_id == "no" else int(track_id)
     result = set_subtitle_track(value)
-    return render_template("action.html", title="Change Subtitle Track", result=result)
+    return json_or_redirect("remote_subtitles", result["ok"], "Subtitle settings updated" if result["ok"] else "Subtitle change failed", result["stderr"] or result["stdout"], default_endpoint="router.remote")
