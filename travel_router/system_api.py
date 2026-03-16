@@ -99,7 +99,7 @@ def scan_wifi(interface: str) -> dict:
     return run_command(["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", interface])
 
 
-def connect_wifi(interface: str, ssid: str, password: str | None) -> dict:
+def connect_wifi(interface: str, ssid: str, password: str | None) -> dict: # DONE
     if is_demo_mode():
         state = demo_state()
         selected = next((network for network in state["wifi_networks"] if network["ssid"] == ssid), None)
@@ -115,13 +115,16 @@ def connect_wifi(interface: str, ssid: str, password: str | None) -> dict:
             },
         )
         return demo_command_result("demo wifi connect", stdout=f"Connected to {ssid}")
-    command = ["nmcli", "device", "wifi", "connect", ssid, "ifname", interface]
+    #command = ["nmcli", "device", "wifi", "connect", ssid, "ifname", interface]
+    # Disconnect: sudo nmcli connection delete "Drevets"
+    
+    command = ["sudo", "nmcli", "dev", "wifi", "connect", ssid, "ifname", interface]
     if password:
         command.extend(["password", password])
     return run_command(command)
 
 
-def current_wifi(interface: str) -> dict:
+def current_wifi(interface: str) -> dict: # DONE
     if is_demo_mode():
         current = demo_state()["wifi_current"]
         return {"ok": True, **current}
