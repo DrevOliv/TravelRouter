@@ -391,7 +391,11 @@ button.danger {
 .wifi-network-list {
   display: grid;
   gap: 0.7rem;
-  margin-bottom: 1rem;
+}
+
+.wifi-network-item {
+  display: grid;
+  gap: 0.5rem;
 }
 
 .wifi-network-row {
@@ -445,6 +449,10 @@ button.danger {
   border-radius: 22px;
   border: 1px solid rgba(17, 109, 110, 0.16);
   background: linear-gradient(180deg, #f5fbf9, #eef7f3);
+}
+
+.wifi-inline-panel {
+  margin: -0.1rem 0 0;
 }
 
 .travel-connect-grid {

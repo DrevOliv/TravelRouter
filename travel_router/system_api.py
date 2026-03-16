@@ -46,7 +46,7 @@ def demo_command_result(command: str, stdout: str = "", stderr: str = "", ok: bo
     }
 
 
-def run_command(command: list[str]) -> dict:
+def run_command_output(command: list[str]) -> dict:
     try:
         completed = subprocess.run(
             command,
@@ -82,6 +82,22 @@ def run_command(command: list[str]) -> dict:
         "auth_url": auth_url,
     }
 
+def run_command(command: list[str]) -> bool:
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
+    except FileNotFoundError:
+        return False
+    except subprocess.TimeoutExpired:
+        return False
+
+    return True
+
 
 def extract_url(text: str) -> str:
     if not text:
@@ -96,7 +112,10 @@ def scan_wifi(interface: str) -> dict:
         for network in demo_state()["wifi_networks"]:
             rows.append(f"{network['ssid']}:{network['signal']}:{network['security']}")
         return demo_command_result(f"demo wifi scan {interface}", stdout="\n".join(rows))
-    return run_command(["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", interface])
+    
+    run_command(["sudo", "nmcli", "device", "wifi", "rescan", "ifname", "wlan0"])
+
+    return run_command_output(["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", interface])
 
 
 def connect_wifi(interface: str, ssid: str, password: str | None) -> dict: # DONE
@@ -117,18 +136,18 @@ def connect_wifi(interface: str, ssid: str, password: str | None) -> dict: # DON
         return demo_command_result("demo wifi connect", stdout=f"Connected to {ssid}")
     #command = ["nmcli", "device", "wifi", "connect", ssid, "ifname", interface]
     # Disconnect: sudo nmcli connection delete "Drevets"
-    
+
     command = ["sudo", "nmcli", "dev", "wifi", "connect", ssid, "ifname", interface]
     if password:
         command.extend(["password", password])
-    return run_command(command)
+    return run_command_output(command)
 
 
 def current_wifi(interface: str) -> dict: # DONE
     if is_demo_mode():
         current = demo_state()["wifi_current"]
         return {"ok": True, **current}
-    result = run_command(
+    result = run_command_output(
         [
             "nmcli",
             "-t",
@@ -184,7 +203,7 @@ def ap_connected_devices(interface: str) -> list[dict]:
         except OSError:
             lease_map = {}
 
-    result = run_command(["ip", "-j", "neigh", "show", "dev", interface])
+    result = run_command_output(["ip", "-j", "neigh", "show", "dev", interface])
     if not result["ok"]:
         return sorted(lease_map.values(), key=lambda device: ((device.get("name") or "").lower(), device.get("ip") or ""))
 
@@ -247,7 +266,7 @@ def tailscale_status() -> dict:
             },
         }
         return demo_command_result("demo tailscale status", stdout=json.dumps(payload))
-    return run_command(["tailscale", "status", "--json"])
+    return run_command_output(["tailscale", "status", "--json"])
 
 
 def tailscale_up(exit_node: str | None = None) -> dict:
@@ -266,7 +285,7 @@ def tailscale_up(exit_node: str | None = None) -> dict:
     command = ["sudo", "tailscale", "up"]
     if exit_node:
         command.extend(["--exit-node", exit_node])
-    return run_command(command)
+    return run_command_output(command)
 
 
 def tailscale_login() -> dict:
@@ -278,28 +297,28 @@ def tailscale_login() -> dict:
             stdout="Open the login URL to authenticate.",
             auth_url=state["auth_url"],
         )
-    return run_command(["sudo", "tailscale", "up"])
+    return run_command_output(["sudo", "tailscale", "up"])
 
 
 def tailscale_down() -> dict:
     if is_demo_mode():
         update_demo("tailscale", {"logged_in": False, "backend_state": "Stopped", "current_exit_node": ""})
         return demo_command_result("demo tailscale down", stdout="Tailscale stopped")
-    return run_command(["sudo", "tailscale", "down"])
+    return run_command_output(["sudo", "tailscale", "down"])
 
 
 def tailscale_disable_exit_node() -> dict:
     if is_demo_mode():
         update_demo("tailscale", {"backend_state": "Running"})
         return demo_command_result("demo tailscale disable exit node", stdout="Exit node disabled")
-    return run_command(["sudo", "tailscale", "set", "--exit-node="])
+    return run_command_output(["sudo", "tailscale", "set", "--exit-node="])
 
 
 def systemctl_status(unit: str) -> dict:
     if is_demo_mode():
         service_state = demo_state()["services"].get(unit, "inactive")
         return demo_command_result(f"demo systemctl is-active {unit}", stdout=service_state, ok=service_state == "active")
-    return run_command(["systemctl", "is-active", unit])
+    return run_command_output(["systemctl", "is-active", unit])
 
 
 def jellyfin_headers() -> dict:
