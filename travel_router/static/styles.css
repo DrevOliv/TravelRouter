@@ -109,6 +109,13 @@ body {
   font-size: 0.95rem;
 }
 
+.site-header nav a.is-active,
+.mobile-tabbar a.is-active {
+  background: rgba(0, 164, 220, 0.18);
+  border-color: rgba(114, 216, 255, 0.28);
+  color: var(--accent-strong);
+}
+
 a,
 .button {
   color: var(--accent-strong);
@@ -157,6 +164,11 @@ a,
   padding: 0.95rem;
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
+}
+
+.loading-card {
+  text-align: center;
+  padding: 2.5rem 1rem;
 }
 
 .hero {

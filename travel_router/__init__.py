@@ -1,20 +1,17 @@
-from flask import Flask, session
+from pathlib import Path
 
-from .env import is_demo_mode, load_dotenv
-from .routes import bp
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
+from .env import load_dotenv
+from .routers import api, router
 
 
-def create_app() -> Flask:
+def create_app() -> FastAPI:
     load_dotenv()
-    app = Flask(__name__)
-    app.config["SECRET_KEY"] = "change-me"
-    app.register_blueprint(bp)
 
-    @app.context_processor
-    def inject_ui_feedback() -> dict:
-        return {
-            "ui_feedback": session.get("ui_feedback"),
-            "demo_mode": is_demo_mode(),
-        }
-
+    app = FastAPI(title="Pi Travel Router")
+    app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static")
+    app.include_router(router)
+    app.include_router(api)
     return app
