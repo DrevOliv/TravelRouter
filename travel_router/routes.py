@@ -200,7 +200,15 @@ def settings_page():
     tailscale = tailscale_status()
     tailscale_data = parse_tailscale_json(tailscale)
     exit_nodes = parse_exit_nodes(tailscale_data)
-    jellyfin_info = jellyfin_system_info()
+    jellyfin_configured = bool(
+        settings["jellyfin"]["server_url"] and settings["jellyfin"]["api_key"] and settings["jellyfin"]["user_id"]
+    )
+    jellyfin_info = {
+        "ok": False,
+        "configured": jellyfin_configured,
+        "reachable": False,
+        "error": "Checking Jellyfin server..." if jellyfin_configured else "Configure Jellyfin below.",
+    }
     return render_template(
         "settings.html",
         settings=settings,
@@ -210,6 +218,11 @@ def settings_page():
         selected_exit_node=current_exit_node_value(tailscale_data, settings),
         jellyfin_info=jellyfin_info,
     )
+
+
+@bp.route("/api/jellyfin/status")
+def jellyfin_status_api():
+    return jellyfin_system_info()
 
 
 @bp.route("/settings/tailscale/login", methods=["POST"])

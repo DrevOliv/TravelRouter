@@ -84,4 +84,62 @@ function escapeAttr(value) {
   return escapeHtml(value);
 }
 
+async function loadJellyfinStatus() {
+  const panel = document.querySelector("[data-jellyfin-panel]");
+  if (!(panel instanceof HTMLElement)) return;
+  if (panel.dataset.jellyfinConfigured !== "true") return;
+
+  const statusUrl = panel.dataset.jellyfinStatusUrl;
+  const heroName = document.querySelector("[data-jellyfin-hero-name]");
+  const title = panel.querySelector("[data-jellyfin-title]");
+  const chip = panel.querySelector("[data-jellyfin-chip]");
+  const message = panel.querySelector("[data-jellyfin-message]");
+
+  try {
+    const response = await fetch(statusUrl, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    const payload = await response.json();
+
+    if (payload.ok) {
+      if (heroName) heroName.textContent = payload.data?.ServerName || "Connected";
+      if (title) title.textContent = payload.data?.ServerName || "Connected";
+      if (chip) {
+        chip.hidden = false;
+        chip.textContent = payload.data?.Version || "Online";
+      }
+      if (message) {
+        message.hidden = true;
+        message.textContent = "";
+      }
+      return;
+    }
+
+    if (heroName) heroName.textContent = "Unreachable";
+    if (title) title.textContent = "Server unreachable";
+    if (chip) {
+      chip.hidden = false;
+      chip.textContent = "Offline";
+    }
+    if (message) {
+      message.hidden = false;
+      message.textContent = payload.error || "Jellyfin server is unreachable.";
+    }
+  } catch (error) {
+    if (heroName) heroName.textContent = "Unreachable";
+    if (title) title.textContent = "Server unreachable";
+    if (chip) {
+      chip.hidden = false;
+      chip.textContent = "Offline";
+    }
+    if (message) {
+      message.hidden = false;
+      message.textContent = "Could not check Jellyfin right now.";
+    }
+  }
+}
+
 document.addEventListener("submit", handleAsyncForm);
+document.addEventListener("DOMContentLoaded", loadJellyfinStatus);

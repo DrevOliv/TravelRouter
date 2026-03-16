@@ -5,6 +5,14 @@
     <div class="hero-copy">
       <h2>Media</h2>
     </div>
+    {% if not items.ok %}
+      <div class="hero-side">
+        <div class="mini-stat">
+          <span class="mini-stat-label">Jellyfin</span>
+          <strong>{{ 'Unreachable' if items.configured else 'Not set' }}</strong>
+        </div>
+      </div>
+    {% endif %}
     <form method="get" action="{{ url_for('router.media') }}" class="toolbar media-search">
       <input type="text" name="q" value="{{ search_term }}" placeholder="Search">
       <input type="hidden" name="parent_id" value="{{ parent_id }}">
@@ -40,11 +48,11 @@
                 {% if item.Type in ['CollectionFolder', 'UserView', 'Series', 'Season', 'BoxSet'] %}
                   <a class="button secondary" href="{{ url_for('router.media', parent_id=item.Id) }}">Open</a>
                 {% else %}
-                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}" data-async-form>
+                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}">
                     <input type="hidden" name="resume" value="true">
                     <button type="submit" data-action="media_play" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'media_play' and ui_feedback.ok else '' }}">Play</button>
                   </form>
-                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}" data-async-form>
+                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}">
                     <input type="hidden" name="resume" value="false">
                     <button type="submit" class="secondary">From start</button>
                   </form>
@@ -58,7 +66,7 @@
       </div>
     {% else %}
       <section class="card empty-state">
-        <h3>Library unavailable</h3>
+        <h3>{{ 'Jellyfin unreachable' if items.configured else 'Library unavailable' }}</h3>
         <p>{{ items.error }}</p>
       </section>
     {% endif %}

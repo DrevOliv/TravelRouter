@@ -12,6 +12,7 @@ from .config_store import load_config, save_config
 
 MPV_SOCKET = "/tmp/pi-travel-router-mpv.sock"
 URL_PATTERN = re.compile(r"https://\S+")
+JELLYFIN_TIMEOUT = (1.5, 5)
 
 
 def run_command(command: list[str]) -> dict:
@@ -147,28 +148,39 @@ def jellyfin_url(path: str) -> str:
     return f"{base}{path}"
 
 
+def format_jellyfin_error(exc: requests.RequestException) -> str:
+    if isinstance(exc, requests.Timeout):
+        return "Jellyfin server timed out."
+    if isinstance(exc, requests.ConnectionError):
+        return "Jellyfin server is unreachable."
+    response = getattr(exc, "response", None)
+    if response is not None:
+        return f"Jellyfin returned HTTP {response.status_code}."
+    return str(exc) or "Jellyfin request failed."
+
+
 def jellyfin_system_info() -> dict:
     config = load_config()["jellyfin"]
     if not config["server_url"] or not config["api_key"]:
-        return {"ok": False, "error": "Jellyfin server URL and API key are required."}
+        return {"ok": False, "configured": False, "reachable": False, "error": "Jellyfin server URL and API key are required."}
 
     try:
         response = requests.get(
             jellyfin_url("/System/Info/Public"),
             headers=jellyfin_headers(),
-            timeout=15,
+            timeout=JELLYFIN_TIMEOUT,
         )
         response.raise_for_status()
     except requests.RequestException as exc:
-        return {"ok": False, "error": str(exc)}
+        return {"ok": False, "configured": True, "reachable": False, "error": format_jellyfin_error(exc)}
 
-    return {"ok": True, "data": response.json()}
+    return {"ok": True, "configured": True, "reachable": True, "data": response.json()}
 
 
 def jellyfin_items(parent_id: str | None = None, search_term: str | None = None) -> dict:
     config = load_config()["jellyfin"]
     if not config["server_url"] or not config["api_key"] or not config["user_id"]:
-        return {"ok": False, "error": "Jellyfin server URL, API key, and user ID are required."}
+        return {"ok": False, "configured": False, "reachable": False, "error": "Jellyfin server URL, API key, and user ID are required."}
 
     params = {
         "Recursive": "true" if search_term else "false",
@@ -188,31 +200,31 @@ def jellyfin_items(parent_id: str | None = None, search_term: str | None = None)
             jellyfin_url(f"/Users/{config['user_id']}/Items"),
             headers=jellyfin_headers(),
             params=params,
-            timeout=20,
+            timeout=JELLYFIN_TIMEOUT,
         )
         response.raise_for_status()
     except requests.RequestException as exc:
-        return {"ok": False, "error": str(exc)}
+        return {"ok": False, "configured": True, "reachable": False, "error": format_jellyfin_error(exc)}
 
-    return {"ok": True, "data": response.json()}
+    return {"ok": True, "configured": True, "reachable": True, "data": response.json()}
 
 
 def jellyfin_views() -> dict:
     config = load_config()["jellyfin"]
     if not config["server_url"] or not config["api_key"] or not config["user_id"]:
-        return {"ok": False, "error": "Jellyfin server URL, API key, and user ID are required."}
+        return {"ok": False, "configured": False, "reachable": False, "error": "Jellyfin server URL, API key, and user ID are required."}
 
     try:
         response = requests.get(
             jellyfin_url(f"/Users/{config['user_id']}/Views"),
             headers=jellyfin_headers(),
-            timeout=20,
+            timeout=JELLYFIN_TIMEOUT,
         )
         response.raise_for_status()
     except requests.RequestException as exc:
-        return {"ok": False, "error": str(exc)}
+        return {"ok": False, "configured": True, "reachable": False, "error": format_jellyfin_error(exc)}
 
-    return {"ok": True, "data": response.json()}
+    return {"ok": True, "configured": True, "reachable": True, "data": response.json()}
 
 
 def jellyfin_image_url(item_id: str) -> str:

@@ -12,7 +12,15 @@
       </div>
       <div class="mini-stat">
         <span class="mini-stat-label">Jellyfin</span>
-        <strong>{{ jellyfin_info.data.ServerName if jellyfin_info.ok else 'Not set' }}</strong>
+        <strong data-jellyfin-hero-name>
+          {% if jellyfin_info.ok %}
+            {{ jellyfin_info.data.ServerName }}
+          {% elif jellyfin_info.configured %}
+            Checking...
+          {% else %}
+            Not set
+          {% endif %}
+        </strong>
       </div>
     </div>
   </section>
@@ -26,7 +34,7 @@
         </div>
       </div>
 
-      <form method="post" action="{{ url_for('router.wifi_settings') }}" class="stack" data-async-form>
+      <form method="post" action="{{ url_for('router.wifi_settings') }}" class="stack">
         <label>
           Upstream interface
           <input type="text" name="upstream_interface" value="{{ settings.wifi.upstream_interface }}">
@@ -48,11 +56,11 @@
         <span class="status-chip">{{ tailscale_data.BackendState or 'Unknown' }}</span>
       </div>
 
-      <form method="post" action="{{ url_for('router.settings_tailscale_login') }}" class="stack" data-async-form>
+      <form method="post" action="{{ url_for('router.settings_tailscale_login') }}" class="stack">
         <button type="submit" data-action="tailscale_login" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'tailscale_login' and ui_feedback.ok else '' }}">Log in to Tailscale</button>
       </form>
 
-      <form method="post" action="{{ url_for('router.settings_tailscale') }}" class="stack toggle-form" data-async-form>
+      <form method="post" action="{{ url_for('router.settings_tailscale') }}" class="stack toggle-form">
         <label class="switch-row">
           <span>Use exit node</span>
           <input type="checkbox" name="use_exit_node" {% if selected_exit_node %}checked{% endif %}>
@@ -77,22 +85,33 @@
       </details>
     </article>
 
-    <article class="card">
+    <article
+      class="card"
+      data-jellyfin-panel
+      data-jellyfin-configured="{{ 'true' if jellyfin_info.configured else 'false' }}"
+      data-jellyfin-status-url="{{ url_for('router.jellyfin_status_api') }}"
+    >
       <div class="section-head">
         <div>
           <p class="eyebrow">Jellyfin</p>
-          <h3>{{ jellyfin_info.data.ServerName if jellyfin_info.ok else 'Media server settings' }}</h3>
+          <h3 data-jellyfin-title>
+            {% if jellyfin_info.ok %}
+              {{ jellyfin_info.data.ServerName }}
+            {% elif jellyfin_info.configured %}
+              Checking server
+            {% else %}
+              Media server settings
+            {% endif %}
+          </h3>
         </div>
-        {% if jellyfin_info.ok %}
-          <span class="status-chip">{{ jellyfin_info.data.Version }}</span>
-        {% endif %}
+        <span class="status-chip" data-jellyfin-chip {% if not jellyfin_info.configured %}hidden{% endif %}>
+          {% if jellyfin_info.configured %}Checking...{% endif %}
+        </span>
       </div>
 
-      {% if not jellyfin_info.ok %}
-        <p class="muted">{{ jellyfin_info.error or 'Configure Jellyfin below.' }}</p>
-      {% endif %}
+      <p class="muted" data-jellyfin-message>{{ jellyfin_info.error or 'Configure Jellyfin below.' }}</p>
 
-      <form method="post" action="{{ url_for('router.jellyfin_settings') }}" class="stack" data-async-form>
+      <form method="post" action="{{ url_for('router.jellyfin_settings') }}" class="stack">
         <label>
           Server URL
           <input type="url" name="server_url" value="{{ settings.jellyfin.server_url }}" placeholder="http://100.x.x.x:8096">
