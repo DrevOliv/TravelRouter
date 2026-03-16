@@ -34,8 +34,17 @@
           <article class="poster-card">
             <div class="poster-frame">
               <img src="{{ jellyfin_image_url(item.Id) }}" alt="{{ item.Name }} poster" loading="lazy">
+              {% if item.Type in ['CollectionFolder', 'UserView', 'Series', 'Season', 'BoxSet'] %}
+                <a class="poster-hitarea" href="{{ url_for('router.media', parent_id=item.Id) }}" aria-label="Open {{ item.Name }}"></a>
+              {% else %}
+                <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}" class="poster-play-form">
+                  <input type="hidden" name="resume" value="true">
+                  <button type="submit" data-action="media_play" class="poster-hitarea poster-play-button {{ 'is-success' if ui_feedback and ui_feedback.action == 'media_play' and ui_feedback.ok else '' }}" aria-label="Play {{ item.Name }}">
+                    <span class="play-icon" aria-hidden="true"></span>
+                  </button>
+                </form>
+              {% endif %}
               <div class="poster-overlay">
-                <span class="type-badge">{{ item.Type }}</span>
                 {% if resume_minutes %}
                   <span class="resume-badge">Resume {{ resume_minutes }}m</span>
                 {% endif %}
@@ -48,10 +57,6 @@
                 {% if item.Type in ['CollectionFolder', 'UserView', 'Series', 'Season', 'BoxSet'] %}
                   <a class="button secondary" href="{{ url_for('router.media', parent_id=item.Id) }}">Open</a>
                 {% else %}
-                  <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}">
-                    <input type="hidden" name="resume" value="true">
-                    <button type="submit" data-action="media_play" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'media_play' and ui_feedback.ok else '' }}">Play</button>
-                  </form>
                   <form method="post" action="{{ url_for('router.media_play', item_id=item.Id) }}">
                     <input type="hidden" name="resume" value="false">
                     <button type="submit" class="secondary">From start</button>

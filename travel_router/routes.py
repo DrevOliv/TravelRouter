@@ -95,6 +95,61 @@ def parse_exit_nodes(tailscale_data: dict) -> list[dict]:
     return nodes
 
 
+def split_nmcli_row(row: str) -> list[str]:
+    parts = []
+    current = []
+    escape = False
+    for char in row:
+        if escape:
+            current.append(char)
+            escape = False
+            continue
+        if char == "\\":
+            escape = True
+            continue
+        if char == ":":
+            parts.append("".join(current))
+            current = []
+            continue
+        current.append(char)
+    parts.append("".join(current))
+    return [part.replace("\\:", ":") for part in parts]
+
+
+def parse_wifi_scan_rows(scan_result: dict) -> list[dict]:
+    if not scan_result.get("ok"):
+        return []
+
+    networks = []
+    seen = set()
+    for row in scan_result.get("stdout", "").splitlines():
+        if not row.strip():
+            continue
+        parts = split_nmcli_row(row)
+        ssid = (parts[0] if len(parts) > 0 else "").strip() or "Hidden network"
+        signal_text = (parts[1] if len(parts) > 1 else "").strip()
+        security = (parts[2] if len(parts) > 2 else "").strip() or "Open"
+        key = (ssid, security)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            signal = int(signal_text)
+        except ValueError:
+            signal = 0
+        networks.append(
+            {
+                "ssid": ssid,
+                "signal": signal,
+                "security": security,
+                "is_open": security.lower() in {"", "open", "--"},
+            }
+        )
+
+    networks.sort(key=lambda network: (-network["signal"], network["ssid"].lower()))
+    return networks
+
+
 def current_exit_node_value(tailscale_data: dict, settings: dict) -> str:
     selected = tailscale_data.get("Self", {}).get("ExitNodeStatus") or {}
     if selected.get("ID"):
@@ -107,6 +162,7 @@ def current_exit_node_value(tailscale_data: dict, settings: dict) -> str:
 def index():
     settings = load_settings()
     wifi_scan = scan_wifi(settings["wifi"]["upstream_interface"])
+    wifi_networks = parse_wifi_scan_rows(wifi_scan)
     wifi_current = current_wifi(settings["wifi"]["upstream_interface"])
     services = {
         "hostapd": systemctl_status("hostapd"),
@@ -117,6 +173,7 @@ def index():
         "index.html",
         settings=settings,
         wifi_scan=wifi_scan,
+        wifi_networks=wifi_networks,
         wifi_current=wifi_current,
         services=services,
     )

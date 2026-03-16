@@ -65,18 +65,44 @@
     <article class="card">
       <h3>Nearby Wi-Fi networks</h3>
       <p class="muted">Scanning via <code>{{ settings.wifi.upstream_interface }}</code></p>
-      <pre class="terminal">{{ wifi_scan.stdout or wifi_scan.stderr or 'No scan data yet.' }}</pre>
-      <form method="post" action="{{ url_for('router.wifi_connect') }}" class="stack">
-        <label>
-          SSID
-          <input type="text" name="ssid" placeholder="HotelWiFi">
-        </label>
-        <label>
-          Password
-          <input type="password" name="password" placeholder="Optional for open networks">
-        </label>
-        <button type="submit" data-action="wifi_connect" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'wifi_connect' and ui_feedback.ok else '' }}">Connect upstream Wi-Fi</button>
-      </form>
+      {% if wifi_networks %}
+        <div class="wifi-network-list">
+          {% for network in wifi_networks %}
+            <button
+              type="button"
+              class="wifi-network-row"
+              data-wifi-select
+              data-ssid="{{ network.ssid }}"
+              data-security="{{ network.security }}"
+              data-open="{{ 'true' if network.is_open else 'false' }}"
+            >
+              <span class="wifi-network-main">
+                <strong>{{ network.ssid }}</strong>
+                <small>{{ network.security }}</small>
+              </span>
+              <span class="wifi-network-signal">{{ network.signal }}%</span>
+            </button>
+          {% endfor %}
+        </div>
+        <form method="post" action="{{ url_for('router.wifi_connect') }}" class="stack wifi-connect-inline" data-async-form data-wifi-form hidden>
+          <div class="wifi-connect-head">
+            <div>
+              <p class="eyebrow">Connect</p>
+              <h4 data-wifi-selected>Choose a network</h4>
+            </div>
+            <button type="button" class="button secondary wifi-close" data-wifi-cancel>Close</button>
+          </div>
+          <input type="hidden" name="ssid" value="" data-wifi-ssid>
+          <label>
+            Password
+            <input type="password" name="password" placeholder="Enter password" data-wifi-password>
+          </label>
+          <p class="muted" data-wifi-hint>Password is optional for open networks.</p>
+          <button type="submit" data-action="wifi_connect" class="{{ 'is-success' if ui_feedback and ui_feedback.action == 'wifi_connect' and ui_feedback.ok else '' }}">Connect</button>
+        </form>
+      {% else %}
+        <p class="muted">{{ wifi_scan.stdout or wifi_scan.stderr or 'No scan data yet.' }}</p>
+      {% endif %}
     </article>
 
     <article class="card">

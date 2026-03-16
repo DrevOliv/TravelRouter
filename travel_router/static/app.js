@@ -141,5 +141,53 @@ async function loadJellyfinStatus() {
   }
 }
 
+function setupWifiPicker() {
+  const form = document.querySelector("[data-wifi-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+
+  const ssidInput = form.querySelector("[data-wifi-ssid]");
+  const passwordInput = form.querySelector("[data-wifi-password]");
+  const title = form.querySelector("[data-wifi-selected]");
+  const hint = form.querySelector("[data-wifi-hint]");
+
+  document.querySelectorAll("[data-wifi-select]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const ssid = button.getAttribute("data-ssid") || "";
+      const isOpen = button.getAttribute("data-open") === "true";
+
+      document.querySelectorAll("[data-wifi-select]").forEach((row) => row.classList.remove("is-active"));
+      button.classList.add("is-active");
+
+      if (ssidInput instanceof HTMLInputElement) ssidInput.value = ssid;
+      if (title) title.textContent = ssid;
+      if (passwordInput instanceof HTMLInputElement) {
+        passwordInput.value = "";
+        passwordInput.required = !isOpen;
+        passwordInput.placeholder = isOpen ? "No password needed" : "Enter password";
+        if (!isOpen) passwordInput.focus();
+      }
+      if (hint) {
+        hint.textContent = isOpen ? "This network looks open. You can connect without a password." : "Enter the Wi-Fi password to connect.";
+      }
+      form.hidden = false;
+    });
+  });
+
+  document.querySelectorAll("[data-wifi-cancel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      form.hidden = true;
+      document.querySelectorAll("[data-wifi-select]").forEach((row) => row.classList.remove("is-active"));
+      if (ssidInput instanceof HTMLInputElement) ssidInput.value = "";
+      if (passwordInput instanceof HTMLInputElement) {
+        passwordInput.value = "";
+        passwordInput.required = false;
+      }
+      if (title) title.textContent = "Choose a network";
+      if (hint) hint.textContent = "Password is optional for open networks.";
+    });
+  });
+}
+
 document.addEventListener("submit", handleAsyncForm);
 document.addEventListener("DOMContentLoaded", loadJellyfinStatus);
+document.addEventListener("DOMContentLoaded", setupWifiPicker);
