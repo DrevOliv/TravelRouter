@@ -6,6 +6,7 @@ const SCREEN_TITLES = {
 };
 
 let mediaSearchTimer = null;
+let homeWifiPollTimer = null;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -103,32 +104,22 @@ function renderError(message) {
   `;
 }
 
-function renderHome(data) {
-  const wifiCurrent = data.wifi_current || {};
-  const services = data.services || {};
-  const settings = data.settings || { wifi: {} };
-  const wifiNetworks = data.wifi_networks || [];
-  const scanMessage = data.wifi_scan?.stdout || data.wifi_scan?.stderr || "No scan data yet.";
-
-  const currentNetworkHtml = wifiCurrent.connected
-    ? `
+function renderCurrentNetworkContent(wifiCurrent) {
+  if (wifiCurrent.connected) {
+    return `
       <ul class="status-list compact-list">
         <li><span>SSID</span><strong class="ok">${escapeHtml(wifiCurrent.ssid)}</strong></li>
         <li><span>Signal</span><strong>${escapeHtml(wifiCurrent.signal)}%</strong></li>
         <li><span>Security</span><strong>${escapeHtml(wifiCurrent.security)}</strong></li>
       </ul>
-    `
-    : `<p class="muted">${escapeHtml(wifiCurrent.ok ? "No upstream Wi-Fi connected." : (wifiCurrent.error || "No upstream Wi-Fi connected."))}</p>`;
+    `;
+  }
 
-  const servicesHtml = Object.entries(services)
-    .map(([name, result]) => {
-      const state = result?.stdout || result?.stderr || "unknown";
-      const stateClass = result?.ok && result?.stdout === "active" ? "ok" : "warn";
-      return `<li><span>${escapeHtml(name)}</span><strong class="${stateClass}">${escapeHtml(state)}</strong></li>`;
-    })
-    .join("");
+  return `<p class="muted">${escapeHtml(wifiCurrent.ok ? "No upstream Wi-Fi connected." : (wifiCurrent.error || "No upstream Wi-Fi connected."))}</p>`;
+}
 
-  const wifiNetworksHtml = wifiNetworks.length
+function renderWifiNetworksContent(wifiNetworks, scanMessage) {
+  return wifiNetworks.length
     ? `
       <div class="wifi-network-list">
         ${wifiNetworks
@@ -151,24 +142,115 @@ function renderHome(data) {
           )
           .join("")}
       </div>
-      <form action="/api/wifi/connect" method="post" class="stack wifi-connect-inline" data-api-form data-refresh="home" data-wifi-form hidden>
+      <form action="/api/wifi/connect" method="post" class="stack wifi-connect-inline" data-api-form data-refresh="home" data-wifi-form>
         <div class="wifi-connect-head">
           <div>
             <p class="eyebrow">Connect</p>
             <h4 data-wifi-selected>Choose a network</h4>
           </div>
-          <button type="button" class="button secondary wifi-close" data-wifi-cancel>Close</button>
         </div>
         <input type="hidden" name="ssid" value="" data-wifi-ssid>
-        <label>
+        <label data-wifi-password-wrap hidden>
           Password
           <input type="password" name="password" placeholder="Enter password" data-wifi-password>
         </label>
         <p class="muted" data-wifi-hint>Password is optional for open networks.</p>
-        <button type="submit" data-action="wifi_connect">Connect</button>
+        <button type="submit" data-action="wifi_connect" data-wifi-submit disabled>Connect</button>
       </form>
     `
     : `<p class="muted">${escapeHtml(scanMessage)}</p>`;
+}
+
+function renderConnectedDevicesContent(connectedDevices) {
+  if (!connectedDevices.length) {
+    return `<p class="muted">No devices connected to the private AP.</p>`;
+  }
+
+  return `
+    <ul class="status-list compact-list device-list">
+      ${connectedDevices
+        .map(
+          (device) => `
+        <li>
+          <span>
+            <strong>${escapeHtml(device.name || device.ip || "Unknown device")}</strong>
+            <small>${escapeHtml(device.ip || "No IP")}${device.mac ? ` · ${escapeHtml(device.mac)}` : ""}</small>
+          </span>
+          <strong class="ok">${escapeHtml(device.state || "connected")}</strong>
+        </li>
+      `
+        )
+        .join("")}
+    </ul>
+  `;
+}
+
+function applyWifiSelectionState(scope = document) {
+  const form = scope.querySelector("[data-wifi-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+
+  const ssidInput = form.querySelector("[data-wifi-ssid]");
+  const selectedSsid = ssidInput instanceof HTMLInputElement ? ssidInput.value : "";
+  const title = form.querySelector("[data-wifi-selected]");
+  const passwordWrap = form.querySelector("[data-wifi-password-wrap]");
+  const passwordInput = form.querySelector("[data-wifi-password]");
+  const hint = form.querySelector("[data-wifi-hint]");
+  const submit = form.querySelector("[data-wifi-submit]");
+
+  document.querySelectorAll("[data-wifi-select]").forEach((row) => {
+    const rowSsid = row.getAttribute("data-ssid") || "";
+    row.classList.toggle("is-active", Boolean(selectedSsid) && rowSsid === selectedSsid);
+  });
+
+  const activeRow = selectedSsid ? document.querySelector(`[data-wifi-select][data-ssid="${CSS.escape(selectedSsid)}"]`) : null;
+  const isOpen = activeRow instanceof HTMLElement ? activeRow.getAttribute("data-open") === "true" : false;
+
+  if (title) title.textContent = selectedSsid || "Choose a network";
+  if (passwordWrap instanceof HTMLElement) passwordWrap.hidden = !selectedSsid || isOpen;
+  if (passwordInput instanceof HTMLInputElement) {
+    passwordInput.required = Boolean(selectedSsid) && !isOpen;
+    passwordInput.placeholder = "Enter password";
+  }
+  if (hint) {
+    if (!selectedSsid) {
+      hint.textContent = "Select a network to connect.";
+    } else {
+      hint.textContent = isOpen ? "Open network selected. You can connect right away." : "Enter the Wi-Fi password to connect.";
+    }
+  }
+  if (submit instanceof HTMLButtonElement) {
+    submit.disabled = !selectedSsid;
+  }
+}
+
+function renderHome(data) {
+  const wifiCurrent = data.wifi_current || {};
+  const connectedDevices = data.connected_devices || [];
+  const services = data.services || {};
+  const settings = data.settings || { wifi: {} };
+  const wifiNetworks = data.wifi_networks || [];
+  const exitNodes = data.exit_nodes || [];
+  const selectedExitNode = data.selected_exit_node || "";
+  const exitNodeActive = Boolean(data.exit_node_active);
+  const exitNodeOptions = [
+    `<option value="">Choose exit node</option>`,
+    ...exitNodes.map(
+      (node) =>
+        `<option value="${escapeAttr(node.value)}" ${selectedExitNode === node.value ? "selected" : ""}>${escapeHtml(node.label)}${node.online ? " · online" : ""}</option>`
+    ),
+  ].join("");
+  const scanMessage = data.wifi_scan?.stdout || data.wifi_scan?.stderr || "No scan data yet.";
+  const currentNetworkHtml = renderCurrentNetworkContent(wifiCurrent);
+
+  const servicesHtml = Object.entries(services)
+    .map(([name, result]) => {
+      const state = result?.stdout || result?.stderr || "unknown";
+      const stateClass = result?.ok && result?.stdout === "active" ? "ok" : "warn";
+      return `<li><span>${escapeHtml(name)}</span><strong class="${stateClass}">${escapeHtml(state)}</strong></li>`;
+    })
+    .join("");
+
+  const wifiNetworksHtml = renderWifiNetworksContent(wifiNetworks, scanMessage);
 
   return `
     <section class="card hero page-hero">
@@ -194,18 +276,69 @@ function renderHome(data) {
     <section class="grid dashboard-grid">
       <article class="card">
         <h3>Current network</h3>
-        ${currentNetworkHtml}
+        <div data-home-current-network>
+          ${currentNetworkHtml}
+        </div>
+      </article>
+
+      <article class="card">
+        <h3>Connected devices</h3>
+        <div data-home-connected-devices>
+          ${renderConnectedDevicesContent(connectedDevices)}
+        </div>
+      </article>
+
+      <article class="card dashboard-card-tall">
+        <div class="travel-panel-head">
+          <div>
+            <h3>Choose Wi-Fi</h3>
+            <p class="muted">Scanning via <code>${escapeHtml(settings.wifi?.upstream_interface || "wlan0")}</code></p>
+          </div>
+        </div>
+        <div data-home-wifi-list>
+          ${wifiNetworksHtml}
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="travel-panel-head">
+          <div>
+            <h3>Exit node</h3>
+            <p class="muted">Save one node, then turn it on only when you need it.</p>
+          </div>
+          <span class="status-chip">${escapeHtml(exitNodeActive ? "On" : "Off")}</span>
+        </div>
+
+        <div class="travel-panel">
+          <div class="exit-node-current">
+            <span class="mini-stat-label">Saved exit node</span>
+            <strong>${escapeHtml(selectedExitNode || "No exit node selected")}</strong>
+          </div>
+
+          <form action="/api/settings/tailscale/toggle" method="post" class="stack exit-node-toggle-form" data-api-form data-refresh="home" data-refresh-on-error="true">
+            <label class="switch-row switch-control">
+              <span>Use exit node</span>
+              <input type="checkbox" name="enabled" ${exitNodeActive ? "checked" : ""} data-exit-node-toggle ${selectedExitNode ? "" : "disabled"}>
+              <span class="switch-slider" aria-hidden="true"></span>
+            </label>
+          </form>
+
+          <form action="/api/settings/tailscale/selection" method="post" class="stack exit-node-form" data-api-form data-refresh="home" data-refresh-on-error="true">
+            <label>
+              Exit node
+              <select name="exit_node" ${exitNodes.length ? "" : "disabled"}>${exitNodeOptions}</select>
+            </label>
+            <button type="submit" data-action="tailscale_selection" class="secondary" ${exitNodes.length ? "" : "disabled"}>Save exit node</button>
+          </form>
+
+          ${exitNodes.length ? "" : `<p class="muted">No exit nodes available yet.</p>`}
+          ${exitNodes.length && !selectedExitNode ? `<p class="muted">Choose and save an exit node before turning it on.</p>` : ""}
+        </div>
       </article>
 
       <article class="card">
         <h3>Service status</h3>
         <ul class="status-list">${servicesHtml}</ul>
-      </article>
-
-      <article class="card card-wide">
-        <h3>Nearby Wi-Fi networks</h3>
-        <p class="muted">Scanning via <code>${escapeHtml(settings.wifi?.upstream_interface || "wlan0")}</code></p>
-        ${wifiNetworksHtml}
       </article>
     </section>
   `;
@@ -213,19 +346,7 @@ function renderHome(data) {
 
 function renderSettings(data) {
   const settings = data.settings || {};
-  const tailscaleData = data.tailscale_data || {};
-  const exitNodes = data.exit_nodes || [];
-  const selectedExitNode = data.selected_exit_node || "";
   const jellyfin = data.jellyfin || {};
-  const tailscaleOutput = data.tailscale?.stdout || data.tailscale?.stderr || "No Tailscale data yet.";
-
-  const exitNodeOptions = [
-    `<option value="">Select node</option>`,
-    ...exitNodes.map(
-      (node) =>
-        `<option value="${escapeAttr(node.value)}" ${selectedExitNode === node.value ? "selected" : ""}>${escapeHtml(node.label)}${node.online ? " · online" : ""}</option>`
-    ),
-  ].join("");
 
   return `
     <section class="card hero page-hero">
@@ -233,10 +354,6 @@ function renderSettings(data) {
         <h2>Settings</h2>
       </div>
       <div class="hero-side">
-        <div class="mini-stat">
-          <span class="mini-stat-label">Tailscale</span>
-          <strong>${escapeHtml(tailscaleData.BackendState || "Unknown")}</strong>
-        </div>
         <div class="mini-stat">
           <span class="mini-stat-label">Jellyfin</span>
           <strong data-jellyfin-hero-name>${escapeHtml(jellyfin.configured ? "Checking..." : "Not set")}</strong>
@@ -263,37 +380,6 @@ function renderSettings(data) {
           </label>
           <button type="submit" data-action="wifi_settings">Save Wi-Fi settings</button>
         </form>
-      </article>
-
-      <article class="card">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">Tailscale</p>
-            <h3>${escapeHtml(tailscaleData.Self?.HostName || "Not connected yet")}</h3>
-          </div>
-          <span class="status-chip">${escapeHtml(tailscaleData.BackendState || "Unknown")}</span>
-        </div>
-
-        <form action="/api/settings/tailscale/login" method="post" class="stack" data-api-form data-refresh="settings">
-          <button type="submit" data-action="tailscale_login">Log in to Tailscale</button>
-        </form>
-
-        <form action="/api/settings/tailscale" method="post" class="stack toggle-form" data-api-form data-refresh="settings">
-          <label class="switch-row">
-            <span>Use exit node</span>
-            <input type="checkbox" name="use_exit_node" ${selectedExitNode ? "checked" : ""}>
-          </label>
-          <label>
-            Exit node
-            <select name="exit_node">${exitNodeOptions}</select>
-          </label>
-          <button type="submit" data-action="tailscale_settings" class="secondary">Save Tailscale settings</button>
-        </form>
-
-        <details class="log-panel">
-          <summary>Output</summary>
-          <pre class="terminal">${escapeHtml(tailscaleOutput)}</pre>
-        </details>
       </article>
 
       <article
@@ -437,20 +523,37 @@ function renderRemote(data) {
   const playback = data.playback_state || {};
   const audioTracks = playback.audio_tracks || [];
   const subtitleTracks = playback.subtitle_tracks || [];
+  const progressPercent = playback.duration ? Math.max(0, Math.min(100, Math.round((playback.time_pos / playback.duration) * 100))) : 0;
 
   const nowPlayingHtml = playback.ok
     ? `
-      <div class="playback-meta">
-        <div>
-          <h3>${escapeHtml(playback.active_item_id || "Active stream")}</h3>
-          <p class="muted">${playback.duration ? `${escapeHtml(playback.time_pos)}s / ${escapeHtml(playback.duration)}s` : `Position ${escapeHtml(playback.time_pos)}s`}</p>
+      <div class="remote-now-playing">
+        <div class="playback-meta">
+          <div>
+            <p class="eyebrow">Now playing</p>
+            <h3>${escapeHtml(playback.active_item_id || "Active stream")}</h3>
+            <p class="muted">${playback.duration ? `${escapeHtml(playback.time_pos)}s of ${escapeHtml(playback.duration)}s` : `Position ${escapeHtml(playback.time_pos)}s`}</p>
+          </div>
+          <span class="status-chip">${escapeHtml(playback.paused ? "Paused" : "Playing")}</span>
         </div>
-        <span class="status-chip">${escapeHtml(playback.paused ? "Paused" : "Playing")}</span>
+        <div class="remote-progress">
+          <div class="remote-progress-bar">
+            <span style="width: ${progressPercent}%"></span>
+          </div>
+          <div class="remote-progress-copy">
+            <span>${escapeHtml(playback.resume_seconds || 0)}s saved</span>
+            <span>${escapeHtml(progressPercent)}%</span>
+          </div>
+        </div>
       </div>
     `
     : `
-      <p class="muted">${escapeHtml(playback.error || "No active playback session yet.")}</p>
-      ${playback.resume_seconds ? `<p class="muted">Latest saved resume point: ${escapeHtml(playback.resume_seconds)} seconds.</p>` : ""}
+      <div class="remote-idle">
+        <p class="eyebrow">Playback</p>
+        <h3>Nothing is playing</h3>
+        <p class="muted">${escapeHtml(playback.error || "Start something from Media to use these controls.")}</p>
+        ${playback.resume_seconds ? `<p class="muted">Latest saved resume point: ${escapeHtml(playback.resume_seconds)} seconds.</p>` : ""}
+      </div>
     `;
 
   return `
@@ -470,20 +573,40 @@ function renderRemote(data) {
       </div>
     </section>
 
-    <section class="card now-playing">${nowPlayingHtml}</section>
+    <section class="remote-shell">
+      <section class="card now-playing">${nowPlayingHtml}</section>
 
-    <section class="card">
-      <div class="remote-grid">
-        <form action="/api/remote/rewind" method="post" data-api-form data-refresh="remote"><button type="submit" data-action="remote_rewind">-30s</button></form>
-        <form action="/api/remote/pause" method="post" data-api-form data-refresh="remote"><button type="submit" data-action="remote_pause">Pause / Resume</button></form>
-        <form action="/api/remote/forward" method="post" data-api-form data-refresh="remote"><button type="submit" data-action="remote_forward">+30s</button></form>
-        <form action="/api/remote/stop" method="post" data-api-form data-refresh="remote"><button type="submit" data-action="remote_stop" class="danger">Stop</button></form>
-      </div>
-    </section>
+      <section class="card remote-transport">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Controls</p>
+            <h3>Transport</h3>
+          </div>
+        </div>
+        <div class="remote-transport-grid">
+          <form action="/api/remote/rewind" method="post" data-api-form data-refresh="remote">
+            <button type="submit" data-action="remote_rewind" class="transport-button secondary">-30s</button>
+          </form>
+          <form action="/api/remote/pause" method="post" data-api-form data-refresh="remote">
+            <button type="submit" data-action="remote_pause" class="transport-button transport-primary">${playback.paused ? "Resume" : "Pause"}</button>
+          </form>
+          <form action="/api/remote/forward" method="post" data-api-form data-refresh="remote">
+            <button type="submit" data-action="remote_forward" class="transport-button secondary">+30s</button>
+          </form>
+          <form action="/api/remote/stop" method="post" data-api-form data-refresh="remote" class="transport-stop">
+            <button type="submit" data-action="remote_stop" class="danger">Stop playback</button>
+          </form>
+        </div>
+      </section>
 
-    <section class="grid remote-settings-grid">
+      <section class="grid remote-settings-grid">
       <article class="card">
-        <h3>Audio language</h3>
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Audio</p>
+            <h3>Language</h3>
+          </div>
+        </div>
         <form action="/api/remote/audio" method="post" class="stack" data-api-form data-refresh="remote">
           <label>
             Active audio track
@@ -501,7 +624,12 @@ function renderRemote(data) {
       </article>
 
       <article class="card">
-        <h3>Subtitles</h3>
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Subtitles</p>
+            <h3>Track</h3>
+          </div>
+        </div>
         <form action="/api/remote/subtitles" method="post" class="stack" data-api-form data-refresh="remote">
           <label>
             Subtitle track
@@ -518,6 +646,7 @@ function renderRemote(data) {
           <button type="submit" data-action="remote_subtitles">Apply subtitles</button>
         </form>
       </article>
+      </section>
     </section>
   `;
 }
@@ -540,6 +669,55 @@ function renderScreen(screen, payload) {
     return;
   }
   root.innerHTML = renderHome(payload);
+  applyWifiSelectionState(root);
+}
+
+function stopHomeWifiPolling() {
+  if (homeWifiPollTimer !== null) {
+    window.clearInterval(homeWifiPollTimer);
+    homeWifiPollTimer = null;
+  }
+}
+
+async function refreshHomeWifiLive() {
+  if (getScreenFromPath(window.location.pathname) !== "home") return;
+
+  const currentCard = document.querySelector("[data-home-current-network]");
+  const wifiList = document.querySelector("[data-home-wifi-list]");
+  const connectedDevicesCard = document.querySelector("[data-home-connected-devices]");
+  if (!(currentCard instanceof HTMLElement) || !(wifiList instanceof HTMLElement) || !(connectedDevicesCard instanceof HTMLElement)) return;
+
+  const selectedSsidInput = document.querySelector("[data-wifi-ssid]");
+  const selectedSsid = selectedSsidInput instanceof HTMLInputElement ? selectedSsidInput.value : "";
+  const passwordInput = document.querySelector("[data-wifi-password]");
+  const typedPassword = passwordInput instanceof HTMLInputElement ? passwordInput.value : "";
+
+  try {
+    const response = await fetch("/api/home/wifi-live", {
+      headers: { Accept: "application/json" },
+    });
+    const payload = await response.json();
+    currentCard.innerHTML = renderCurrentNetworkContent(payload.wifi_current || {});
+    connectedDevicesCard.innerHTML = renderConnectedDevicesContent(payload.connected_devices || []);
+    const scanMessage = payload.wifi_scan?.stdout || payload.wifi_scan?.stderr || "No scan data yet.";
+    wifiList.innerHTML = renderWifiNetworksContent(payload.wifi_networks || [], scanMessage);
+
+    const nextSsidInput = document.querySelector("[data-wifi-ssid]");
+    const nextPasswordInput = document.querySelector("[data-wifi-password]");
+    if (nextSsidInput instanceof HTMLInputElement) nextSsidInput.value = selectedSsid;
+    if (nextPasswordInput instanceof HTMLInputElement) nextPasswordInput.value = typedPassword;
+    applyWifiSelectionState(document);
+  } catch (_error) {
+    // Ignore transient polling failures and keep the last rendered Wi-Fi state.
+  }
+}
+
+function startHomeWifiPolling() {
+  stopHomeWifiPolling();
+  if (getScreenFromPath(window.location.pathname) !== "home") return;
+  homeWifiPollTimer = window.setInterval(() => {
+    refreshHomeWifiLive();
+  }, 5000);
 }
 
 async function loadCurrentScreen(options = {}) {
@@ -558,7 +736,13 @@ async function loadCurrentScreen(options = {}) {
     });
     const payload = await response.json();
     renderScreen(screen, payload);
+    if (screen === "home") {
+      startHomeWifiPolling();
+    } else {
+      stopHomeWifiPolling();
+    }
   } catch (error) {
+    stopHomeWifiPolling();
     renderError(String(error));
   }
 }
@@ -646,9 +830,9 @@ function flashActionSuccess(target, ok) {
 
 async function submitApiForm(form, submitter) {
   const body = JSON.stringify(formToJson(form));
-  const originalText = submitter ? submitter.textContent : "";
+  const originalText = submitter instanceof HTMLButtonElement ? submitter.textContent : "";
 
-  if (submitter) {
+  if (submitter instanceof HTMLButtonElement) {
     submitter.disabled = true;
     submitter.textContent = "Saving...";
   }
@@ -665,13 +849,20 @@ async function submitApiForm(form, submitter) {
     const payload = await response.json();
     updateFeedback(payload);
     flashActionSuccess(submitter, payload.ok);
-    if (payload.ok && payload.refresh && payload.refresh === getScreenFromPath(window.location.pathname)) {
+    const desiredRefresh = form.dataset.refresh || payload.refresh;
+    if (payload.ok && desiredRefresh && desiredRefresh === getScreenFromPath(window.location.pathname)) {
+      await loadCurrentScreen({ silent: true });
+    } else if (!payload.ok && form.dataset.refreshOnError === "true" && desiredRefresh === getScreenFromPath(window.location.pathname)) {
       await loadCurrentScreen({ silent: true });
     }
   } catch (error) {
     updateFeedback({ ok: false, message: "Request failed", detail: String(error) });
+    const desiredRefresh = form.dataset.refresh;
+    if (form.dataset.refreshOnError === "true" && desiredRefresh === getScreenFromPath(window.location.pathname)) {
+      await loadCurrentScreen({ silent: true });
+    }
   } finally {
-    if (submitter) {
+    if (submitter instanceof HTMLButtonElement) {
       submitter.disabled = false;
       submitter.textContent = originalText;
     }
@@ -710,8 +901,10 @@ function handleClick(event) {
     if (!(form instanceof HTMLFormElement)) return;
     const ssidInput = form.querySelector("[data-wifi-ssid]");
     const passwordInput = form.querySelector("[data-wifi-password]");
+    const passwordWrap = form.querySelector("[data-wifi-password-wrap]");
     const title = form.querySelector("[data-wifi-selected]");
     const hint = form.querySelector("[data-wifi-hint]");
+    const submit = form.querySelector("[data-wifi-submit]");
     const ssid = wifiButton.getAttribute("data-ssid") || "";
     const isOpen = wifiButton.getAttribute("data-open") === "true";
 
@@ -719,37 +912,18 @@ function handleClick(event) {
     wifiButton.classList.add("is-active");
 
     if (ssidInput instanceof HTMLInputElement) ssidInput.value = ssid;
-    if (title) title.textContent = ssid;
     if (passwordInput instanceof HTMLInputElement) {
       passwordInput.value = "";
-      passwordInput.required = !isOpen;
-      passwordInput.placeholder = isOpen ? "No password needed" : "Enter password";
+      passwordInput.placeholder = "Enter password";
       if (!isOpen) passwordInput.focus();
     }
+    if (title) title.textContent = ssid;
+    if (passwordWrap instanceof HTMLElement) passwordWrap.hidden = isOpen;
     if (hint) {
-      hint.textContent = isOpen ? "This network looks open. You can connect without a password." : "Enter the Wi-Fi password to connect.";
+      hint.textContent = isOpen ? "Open network selected. You can connect right away." : "Enter the Wi-Fi password to connect.";
     }
-    form.hidden = false;
-    return;
-  }
-
-  const wifiCancel = event.target.closest("[data-wifi-cancel]");
-  if (wifiCancel instanceof HTMLElement) {
-    const form = document.querySelector("[data-wifi-form]");
-    if (!(form instanceof HTMLFormElement)) return;
-    const ssidInput = form.querySelector("[data-wifi-ssid]");
-    const passwordInput = form.querySelector("[data-wifi-password]");
-    const title = form.querySelector("[data-wifi-selected]");
-    const hint = form.querySelector("[data-wifi-hint]");
-    form.hidden = true;
-    document.querySelectorAll("[data-wifi-select]").forEach((row) => row.classList.remove("is-active"));
-    if (ssidInput instanceof HTMLInputElement) ssidInput.value = "";
-    if (passwordInput instanceof HTMLInputElement) {
-      passwordInput.value = "";
-      passwordInput.required = false;
-    }
-    if (title) title.textContent = "Choose a network";
-    if (hint) hint.textContent = "Password is optional for open networks.";
+    if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    applyWifiSelectionState(document);
   }
 }
 
@@ -764,6 +938,16 @@ function handleInput(event) {
   mediaSearchTimer = window.setTimeout(() => {
     triggerLiveMediaSearch(form);
   }, 220);
+}
+
+function handleChange(event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  if (!input.matches("[data-exit-node-toggle]")) return;
+
+  const form = input.closest("form[data-api-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+  submitApiForm(form, null);
 }
 
 function handleSubmit(event) {
@@ -792,10 +976,12 @@ function handleSubmit(event) {
 }
 
 document.addEventListener("click", handleClick);
+document.addEventListener("change", handleChange);
 document.addEventListener("input", handleInput);
 document.addEventListener("submit", handleSubmit);
 window.addEventListener("popstate", () => {
   loadCurrentScreen();
 });
+window.addEventListener("beforeunload", stopHomeWifiPolling);
 document.addEventListener("DOMContentLoaded", loadMeta);
 document.addEventListener("DOMContentLoaded", loadCurrentScreen);

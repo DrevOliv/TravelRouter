@@ -23,6 +23,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   background: var(--bg);
 }
@@ -204,6 +208,10 @@ a,
   gap: 1.25rem;
 }
 
+.dashboard-card-tall {
+  grid-row: span 2;
+}
+
 .card-wide {
   grid-column: 1 / -1;
 }
@@ -346,6 +354,14 @@ button:hover,
   box-shadow: 0 12px 22px rgba(17, 109, 110, 0.14);
 }
 
+button:disabled,
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
 button.secondary,
 .button.secondary {
   background: #fffdf9;
@@ -431,6 +447,34 @@ button.danger {
   background: linear-gradient(180deg, #f5fbf9, #eef7f3);
 }
 
+.travel-connect-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.travel-panel {
+  display: grid;
+  gap: 0.95rem;
+  align-content: start;
+}
+
+.travel-panel-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.travel-panel-head h3 {
+  margin: 0 0 0.35rem;
+}
+
+.travel-panel-head p {
+  margin: 0;
+}
+
 .wifi-connect-head {
   display: flex;
   justify-content: space-between;
@@ -447,6 +491,22 @@ button.danger {
 .wifi-close {
   min-height: 40px;
   padding: 0.65rem 0.8rem;
+}
+
+.exit-node-current {
+  display: grid;
+  gap: 0.24rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(17, 109, 110, 0.12);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.exit-node-form {
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(17, 109, 110, 0.12);
+  background: #fffdf9;
 }
 
 .status-list {
@@ -471,6 +531,20 @@ button.danger {
 .status-list li:last-child {
   padding-bottom: 0;
   border-bottom: none;
+}
+
+.device-list li {
+  align-items: center;
+}
+
+.device-list li span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.device-list li small {
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .ok {
@@ -728,6 +802,11 @@ button.danger {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.remote-shell {
+  display: grid;
+  gap: 1rem;
+}
+
 .now-playing,
 .playback-meta,
 .remote-settings-grid,
@@ -743,6 +822,71 @@ button.danger {
   align-items: center;
 }
 
+.remote-now-playing,
+.remote-idle {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.remote-progress {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.remote-progress-bar {
+  width: 100%;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: rgba(17, 109, 110, 0.12);
+  overflow: hidden;
+}
+
+.remote-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+}
+
+.remote-progress-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.remote-transport {
+  gap: 1rem;
+}
+
+.remote-transport-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  align-items: stretch;
+}
+
+.transport-button {
+  min-height: 4.25rem;
+  width: 100%;
+  border-radius: 22px;
+  font-size: 1rem;
+}
+
+.transport-primary {
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.transport-stop {
+  grid-column: 1 / -1;
+}
+
+.transport-stop button {
+  width: 100%;
+}
+
 .section-head {
   grid-template-columns: 1fr auto;
   align-items: start;
@@ -753,6 +897,51 @@ button.danger {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.switch-control {
+  position: relative;
+}
+
+.switch-control input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.switch-slider {
+  position: relative;
+  flex: 0 0 auto;
+  width: 3.1rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  background: #d9ddd6;
+  border: 1px solid rgba(39, 57, 60, 0.12);
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.switch-slider::after {
+  content: "";
+  position: absolute;
+  top: 0.18rem;
+  left: 0.2rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: #fffdf9;
+  box-shadow: 0 2px 6px rgba(31, 42, 48, 0.14);
+  transition: transform 160ms ease;
+}
+
+.switch-control input[type="checkbox"]:checked + .switch-slider {
+  background: rgba(17, 109, 110, 0.82);
+  border-color: rgba(17, 109, 110, 0.24);
+}
+
+.switch-control input[type="checkbox"]:checked + .switch-slider::after {
+  transform: translateX(1.2rem);
 }
 
 .log-panel {
@@ -766,11 +955,6 @@ button.danger {
   padding: 0.5rem 0;
   cursor: pointer;
   color: var(--muted);
-}
-
-.switch-row input[type="checkbox"] {
-  width: 1.2rem;
-  height: 1.2rem;
 }
 
 .empty-state {
@@ -869,6 +1053,10 @@ button.danger {
     gap: 0.9rem;
   }
 
+  .dashboard-card-tall {
+    grid-row: auto;
+  }
+
   .card-wide {
     grid-column: auto;
   }
@@ -945,8 +1133,21 @@ button.danger {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .remote-transport-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .transport-stop {
+    grid-column: 1 / -1;
+  }
+
   .wifi-network-row {
     padding: 0.78rem 0.82rem;
+  }
+
+  .travel-connect-grid {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
   }
 
   .wifi-connect-head {

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from ..api_models import ActionResponse, HomeResponse, WifiConnectBody
-from ..screen_data import action_payload, home_payload
+from ..api_models import ActionResponse, HomeResponse, WifiConnectBody, WifiLiveResponse
+from ..screen_data import action_payload, home_payload, wifi_live_payload
 from ..system_api import connect_wifi, load_settings
 
 
@@ -17,6 +17,18 @@ router = APIRouter()
 )
 async def api_home():
     return home_payload()
+
+
+@router.get(
+    "/home/wifi-live",
+    response_model=WifiLiveResponse,
+    tags=["home"],
+    summary="Get live Wi-Fi dashboard data",
+    description="Returns only the current upstream Wi-Fi state and nearby scanned networks for lightweight Home screen polling.",
+)
+async def api_home_wifi_live():
+    settings = load_settings()
+    return wifi_live_payload(settings["wifi"]["upstream_interface"])
 
 
 @router.post(

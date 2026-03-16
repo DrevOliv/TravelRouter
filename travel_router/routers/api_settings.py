@@ -2,6 +2,8 @@ from fastapi import APIRouter
 
 from ..api_models import (
     ActionResponse,
+    ExitNodeSelectionBody,
+    ExitNodeToggleBody,
     JellyfinSettingsBody,
     JellyfinStatusResponse,
     SettingsResponse,
@@ -9,13 +11,7 @@ from ..api_models import (
     WifiSettingsBody,
 )
 from ..screen_data import action_payload, settings_payload
-from ..system_api import (
-    jellyfin_system_info,
-    tailscale_disable_exit_node,
-    tailscale_login,
-    tailscale_up,
-    update_settings,
-)
+from ..system_api import jellyfin_system_info, load_settings, tailscale_disable_exit_node, tailscale_login, tailscale_up, update_settings
 
 
 router = APIRouter()
@@ -92,6 +88,48 @@ async def api_tailscale_settings(body: TailscaleSettingsBody):
             update_settings("tailscale", {"current_exit_node": ""})
 
     return action_payload("tailscale_settings", result, "Tailscale settings saved", "Tailscale settings failed", refresh="settings")
+
+
+@router.post(
+    "/settings/tailscale/selection",
+    response_model=ActionResponse,
+    tags=["settings"],
+    summary="Save preferred exit node",
+    description="Saves the preferred Tailscale exit node in app settings without turning it on immediately.",
+    responses={400: {"model": ActionResponse, "description": "No exit node was provided."}},
+)
+async def api_tailscale_selection(body: ExitNodeSelectionBody):
+    selected = body.exit_node.strip()
+    if not selected:
+        return {"ok": False, "action": "tailscale_selection", "message": "Choose an exit node first", "detail": "", "link": "", "refresh": None}
+
+    update_settings("tailscale", {"current_exit_node": selected, "exit_node_enabled": False})
+    return {"ok": True, "action": "tailscale_selection", "message": "Exit node saved", "detail": "", "link": "", "refresh": "home"}
+
+
+@router.post(
+    "/settings/tailscale/toggle",
+    response_model=ActionResponse,
+    tags=["settings"],
+    summary="Toggle preferred exit node",
+    description="Turns the saved exit node on or off without changing which node is saved.",
+    responses={400: {"model": ActionResponse, "description": "No preferred exit node is saved yet."}},
+)
+async def api_tailscale_toggle(body: ExitNodeToggleBody):
+    settings = load_settings()
+    selected = settings["tailscale"]["current_exit_node"].strip()
+    if body.enabled:
+        if not selected:
+            return {"ok": False, "action": "tailscale_toggle", "message": "Save an exit node first", "detail": "", "link": "", "refresh": None}
+        result = tailscale_up(selected)
+        if result["ok"]:
+            update_settings("tailscale", {"exit_node_enabled": True})
+    else:
+        result = tailscale_disable_exit_node()
+        if result["ok"]:
+            update_settings("tailscale", {"exit_node_enabled": False})
+
+    return action_payload("tailscale_toggle", result, "Exit node updated", "Exit node update failed", refresh="home")
 
 
 @router.post(

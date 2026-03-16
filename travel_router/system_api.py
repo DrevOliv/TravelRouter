@@ -14,6 +14,7 @@ from .env import is_demo_mode
 MPV_SOCKET = "/tmp/pi-travel-router-mpv.sock"
 URL_PATTERN = re.compile(r"https://\S+")
 JELLYFIN_TIMEOUT = (1.5, 5)
+DNSMASQ_LEASES_PATH = Path("/var/lib/misc/dnsmasq.leases")
 
 
 def demo_state() -> dict:
@@ -158,14 +159,78 @@ def current_wifi(interface: str) -> dict:
     return {"ok": True, "connected": False, "ssid": "", "signal": "", "security": ""}
 
 
+def ap_connected_devices(interface: str) -> list[dict]:
+    if is_demo_mode():
+        devices = demo_state().get("ap_clients", [])
+        return sorted(devices, key=lambda device: ((device.get("name") or "").lower(), device.get("ip") or ""))
+
+    lease_map = {}
+    if DNSMASQ_LEASES_PATH.exists():
+        try:
+            for row in DNSMASQ_LEASES_PATH.read_text(encoding="utf-8").splitlines():
+                parts = row.split()
+                if len(parts) < 4:
+                    continue
+                _expires, mac, ip, hostname = parts[:4]
+                lease_map[ip] = {
+                    "ip": ip,
+                    "mac": mac.upper(),
+                    "name": "" if hostname == "*" else hostname,
+                    "state": "lease",
+                }
+        except OSError:
+            lease_map = {}
+
+    result = run_command(["ip", "-j", "neigh", "show", "dev", interface])
+    if not result["ok"]:
+        return sorted(lease_map.values(), key=lambda device: ((device.get("name") or "").lower(), device.get("ip") or ""))
+
+    try:
+        neighbors = json.loads(result["stdout"] or "[]")
+    except json.JSONDecodeError:
+        neighbors = []
+
+    devices = {}
+    for entry in neighbors:
+        ip = entry.get("dst", "")
+        if not ip:
+            continue
+        state = " ".join(entry.get("state") or [])
+        if state.upper() in {"FAILED", "INCOMPLETE", "NOARP"}:
+            continue
+        mac = (entry.get("lladdr") or lease_map.get(ip, {}).get("mac") or "").upper()
+        name = lease_map.get(ip, {}).get("name") or ip
+        devices[ip] = {
+            "ip": ip,
+            "mac": mac,
+            "name": name,
+            "state": state.lower() if state else "reachable",
+        }
+
+    for ip, lease in lease_map.items():
+        devices.setdefault(
+            ip,
+            {
+                "ip": ip,
+                "mac": lease.get("mac", ""),
+                "name": lease.get("name") or ip,
+                "state": lease.get("state", "lease"),
+            },
+        )
+
+    return sorted(devices.values(), key=lambda device: ((device.get("name") or "").lower(), device.get("ip") or ""))
+
+
 def tailscale_status() -> dict:
     if is_demo_mode():
-        state = demo_state()["tailscale"]
+        config = load_config()
+        state = config["demo"]["tailscale"]
+        active_exit_node = state["current_exit_node"] if config["tailscale"].get("exit_node_enabled") else ""
         payload = {
             "BackendState": state["backend_state"],
             "Self": {
                 "HostName": state["host_name"],
-                "ExitNodeStatus": {"ID": state["current_exit_node"]} if state["current_exit_node"] else {},
+                "ExitNodeStatus": {"ID": active_exit_node} if active_exit_node else {},
             },
             "Peer": {
                 node["value"]: {
@@ -222,7 +287,7 @@ def tailscale_down() -> dict:
 
 def tailscale_disable_exit_node() -> dict:
     if is_demo_mode():
-        update_demo("tailscale", {"current_exit_node": "", "backend_state": "Running"})
+        update_demo("tailscale", {"backend_state": "Running"})
         return demo_command_result("demo tailscale disable exit node", stdout="Exit node disabled")
     return run_command(["sudo", "tailscale", "set", "--exit-node="])
 

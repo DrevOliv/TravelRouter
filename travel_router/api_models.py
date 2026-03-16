@@ -18,6 +18,14 @@ class TailscaleSettingsBody(BaseModel):
     exit_node: str = Field("", description="Selected Tailscale exit node DNS name or IP.")
 
 
+class ExitNodeSelectionBody(BaseModel):
+    exit_node: str = Field("", description="Preferred Tailscale exit node DNS name or IP to save in settings.")
+
+
+class ExitNodeToggleBody(BaseModel):
+    enabled: bool = Field(..., description="Turn the saved exit node on or off.")
+
+
 class JellyfinSettingsBody(BaseModel):
     server_url: str = Field("", description="Base URL of the Jellyfin server.")
     api_key: str = Field("", description="Jellyfin API key used for browsing and playback.")
@@ -74,6 +82,13 @@ class WifiCurrent(BaseModel):
     error: str | None = Field(None, description="Error message when Wi-Fi state could not be read.")
 
 
+class ConnectedDevice(BaseModel):
+    name: str = Field("", description="Best available device label, usually a hostname or a friendly fallback.")
+    ip: str = Field("", description="IPv4 or IPv6 address seen on the private AP.")
+    mac: str = Field("", description="MAC address if available.")
+    state: str = Field("", description="Neighbor or lease state for the connected device.")
+
+
 class WifiConfig(BaseModel):
     upstream_interface: str = Field(..., description="Interface used for upstream Wi-Fi.")
     ap_interface: str = Field(..., description="Interface used for the private access point.")
@@ -82,6 +97,7 @@ class WifiConfig(BaseModel):
 class TailscaleConfig(BaseModel):
     advertise_exit_node: bool = Field(False, description="Legacy config flag; not used by the current UI.")
     current_exit_node: str = Field("", description="Currently selected Tailscale exit node.")
+    exit_node_enabled: bool = Field(False, description="Whether the saved exit node should be actively used.")
 
 
 class JellyfinConfig(BaseModel):
@@ -114,7 +130,20 @@ class HomeResponse(BaseModel):
     wifi_scan: CommandResult
     wifi_networks: list[WifiNetwork]
     wifi_current: WifiCurrent
+    connected_devices: list[ConnectedDevice]
+    tailscale: CommandResult
+    tailscale_data: dict[str, Any] = Field(..., description="Parsed subset of `tailscale status --json` used on the Home screen.")
+    exit_nodes: list[ExitNode]
+    selected_exit_node: str = Field("", description="Currently selected exit node value.")
+    exit_node_active: bool = Field(False, description="Whether exit-node routing is currently enabled.")
     services: dict[str, CommandResult]
+
+
+class WifiLiveResponse(BaseModel):
+    wifi_scan: CommandResult
+    wifi_networks: list[WifiNetwork]
+    wifi_current: WifiCurrent
+    connected_devices: list[ConnectedDevice]
 
 
 class SettingsResponse(BaseModel):
@@ -123,6 +152,7 @@ class SettingsResponse(BaseModel):
     tailscale_data: dict[str, Any] = Field(..., description="Parsed subset of `tailscale status --json`.")
     exit_nodes: list[ExitNode]
     selected_exit_node: str = Field("", description="Currently selected exit node value.")
+    exit_node_active: bool = Field(False, description="Whether exit-node routing is currently enabled.")
     jellyfin: JellyfinSummary
 
 

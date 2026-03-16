@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
     "tailscale": {
         "advertise_exit_node": False,
         "current_exit_node": "",
+        "exit_node_enabled": False,
     },
     "jellyfin": {
         "server_url": "",
@@ -37,6 +38,10 @@ DEFAULT_CONFIG = {
             "signal": "",
             "security": "",
         },
+        "ap_clients": [
+            {"name": "Oliver iPhone", "ip": "192.168.50.21", "mac": "A4:83:E7:11:22:33", "state": "reachable"},
+            {"name": "MacBook Air", "ip": "192.168.50.10", "mac": "8C:85:90:44:55:66", "state": "reachable"},
+        ],
         "tailscale": {
             "logged_in": False,
             "backend_state": "NeedsLogin",
