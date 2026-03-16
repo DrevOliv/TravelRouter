@@ -11,6 +11,9 @@
     <header class="site-header">
       <div class="brand-block">
         <h1>Pi Travel Router</h1>
+        {% if demo_mode %}
+          <span class="mode-badge">Demo mode</span>
+        {% endif %}
       </div>
       <div class="nav-scroll nav-desktop">
         <nav>

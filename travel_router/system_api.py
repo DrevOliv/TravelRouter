@@ -8,11 +8,41 @@ from pathlib import Path
 import requests
 
 from .config_store import load_config, save_config
+from .env import is_demo_mode
 
 
 MPV_SOCKET = "/tmp/pi-travel-router-mpv.sock"
 URL_PATTERN = re.compile(r"https://\S+")
 JELLYFIN_TIMEOUT = (1.5, 5)
+
+
+def demo_state() -> dict:
+    return load_config()["demo"]
+
+
+def update_demo(section: str, values: dict) -> dict:
+    config = load_config()
+    demo = config.setdefault("demo", {})
+    demo.setdefault(section, {})
+    demo[section].update(values)
+    save_config(config)
+    return demo[section]
+
+
+def save_demo_state(state: dict) -> None:
+    config = load_config()
+    config["demo"] = state
+    save_config(config)
+
+
+def demo_command_result(command: str, stdout: str = "", stderr: str = "", ok: bool = True, auth_url: str = "") -> dict:
+    return {
+        "ok": ok,
+        "stdout": stdout,
+        "stderr": stderr,
+        "command": command,
+        "auth_url": auth_url,
+    }
 
 
 def run_command(command: list[str]) -> dict:
@@ -60,10 +90,30 @@ def extract_url(text: str) -> str:
 
 
 def scan_wifi(interface: str) -> dict:
+    if is_demo_mode():
+        rows = []
+        for network in demo_state()["wifi_networks"]:
+            rows.append(f"{network['ssid']}:{network['signal']}:{network['security']}")
+        return demo_command_result(f"demo wifi scan {interface}", stdout="\n".join(rows))
     return run_command(["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", interface])
 
 
 def connect_wifi(interface: str, ssid: str, password: str | None) -> dict:
+    if is_demo_mode():
+        state = demo_state()
+        selected = next((network for network in state["wifi_networks"] if network["ssid"] == ssid), None)
+        if not selected:
+            return demo_command_result("demo wifi connect", stderr="Network not found", ok=False)
+        update_demo(
+            "wifi_current",
+            {
+                "connected": True,
+                "ssid": selected["ssid"],
+                "signal": str(selected["signal"]),
+                "security": selected["security"],
+            },
+        )
+        return demo_command_result("demo wifi connect", stdout=f"Connected to {ssid}")
     command = ["nmcli", "device", "wifi", "connect", ssid, "ifname", interface]
     if password:
         command.extend(["password", password])
@@ -71,6 +121,9 @@ def connect_wifi(interface: str, ssid: str, password: str | None) -> dict:
 
 
 def current_wifi(interface: str) -> dict:
+    if is_demo_mode():
+        current = demo_state()["wifi_current"]
+        return {"ok": True, **current}
     result = run_command(
         [
             "nmcli",
@@ -106,10 +159,42 @@ def current_wifi(interface: str) -> dict:
 
 
 def tailscale_status() -> dict:
+    if is_demo_mode():
+        state = demo_state()["tailscale"]
+        payload = {
+            "BackendState": state["backend_state"],
+            "Self": {
+                "HostName": state["host_name"],
+                "ExitNodeStatus": {"ID": state["current_exit_node"]} if state["current_exit_node"] else {},
+            },
+            "Peer": {
+                node["value"]: {
+                    "HostName": node["label"],
+                    "DNSName": node["value"],
+                    "Online": node["online"],
+                    "ExitNodeOption": True,
+                    "TailscaleIPs": [node["value"]],
+                }
+                for node in state["exit_nodes"]
+            },
+        }
+        return demo_command_result("demo tailscale status", stdout=json.dumps(payload))
     return run_command(["tailscale", "status", "--json"])
 
 
 def tailscale_up(exit_node: str | None = None) -> dict:
+    if is_demo_mode():
+        state = demo_state()["tailscale"]
+        update_demo(
+            "tailscale",
+            {
+                "logged_in": True,
+                "backend_state": "Running",
+                "current_exit_node": exit_node or state["current_exit_node"],
+            },
+        )
+        stdout = f"Connected to exit node {exit_node}" if exit_node else "Tailscale is running"
+        return demo_command_result("demo tailscale up", stdout=stdout)
     command = ["sudo", "tailscale", "up"]
     if exit_node:
         command.extend(["--exit-node", exit_node])
@@ -117,18 +202,35 @@ def tailscale_up(exit_node: str | None = None) -> dict:
 
 
 def tailscale_login() -> dict:
+    if is_demo_mode():
+        state = demo_state()["tailscale"]
+        update_demo("tailscale", {"logged_in": False, "backend_state": "NeedsLogin"})
+        return demo_command_result(
+            "demo tailscale login",
+            stdout="Open the login URL to authenticate.",
+            auth_url=state["auth_url"],
+        )
     return run_command(["sudo", "tailscale", "up"])
 
 
 def tailscale_down() -> dict:
+    if is_demo_mode():
+        update_demo("tailscale", {"logged_in": False, "backend_state": "Stopped", "current_exit_node": ""})
+        return demo_command_result("demo tailscale down", stdout="Tailscale stopped")
     return run_command(["sudo", "tailscale", "down"])
 
 
 def tailscale_disable_exit_node() -> dict:
+    if is_demo_mode():
+        update_demo("tailscale", {"current_exit_node": "", "backend_state": "Running"})
+        return demo_command_result("demo tailscale disable exit node", stdout="Exit node disabled")
     return run_command(["sudo", "tailscale", "set", "--exit-node="])
 
 
 def systemctl_status(unit: str) -> dict:
+    if is_demo_mode():
+        service_state = demo_state()["services"].get(unit, "inactive")
+        return demo_command_result(f"demo systemctl is-active {unit}", stdout=service_state, ok=service_state == "active")
     return run_command(["systemctl", "is-active", unit])
 
 
@@ -238,6 +340,18 @@ def play_jellyfin_item(item_id: str, resume: bool = True) -> dict:
     config = load_config()["jellyfin"]
     if not config["server_url"] or not config["api_key"]:
         return {"ok": False, "stderr": "Jellyfin server URL and API key are required."}
+
+    if is_demo_mode():
+        config = load_config()
+        demo_playback = config["demo"]["playback"]
+        start_time = load_resume_seconds(item_id) if resume else 0
+        demo_playback["active_item_id"] = item_id
+        demo_playback["paused"] = False
+        demo_playback["time_pos"] = start_time
+        demo_playback["duration"] = max(int(demo_playback.get("duration", 6942) or 6942), start_time + 600)
+        save_config(config)
+        update_playback_state(item_id)
+        return demo_command_result("demo mpv play", stdout="Playback started")
 
     save_resume_position()
     play_url = jellyfin_url(f"/Videos/{item_id}/stream")
@@ -369,6 +483,22 @@ def save_resume_position() -> dict:
 
 
 def get_playback_state() -> dict:
+    if is_demo_mode():
+        config = load_config()
+        demo_playback = config["demo"]["playback"]
+        active_item_id = demo_playback.get("active_item_id", "")
+        return {
+            "ok": bool(active_item_id),
+            "error": "" if active_item_id else "No active playback session yet.",
+            "audio_tracks": demo_playback.get("audio_tracks", []),
+            "subtitle_tracks": demo_playback.get("subtitle_tracks", []),
+            "paused": bool(demo_playback.get("paused")),
+            "time_pos": int(demo_playback.get("time_pos", 0) or 0),
+            "duration": int(demo_playback.get("duration", 0) or 0),
+            "active_item_id": active_item_id,
+            "resume_seconds": load_resume_seconds(active_item_id) if active_item_id else 0,
+        }
+
     tracks = mpv_get_property("track-list")
     pause_state = mpv_get_property("pause")
     time_pos = mpv_get_property("time-pos")
@@ -411,23 +541,63 @@ def get_playback_state() -> dict:
 
 
 def set_audio_track(track_id: int) -> dict:
+    if is_demo_mode():
+        config = load_config()
+        tracks = config["demo"]["playback"]["audio_tracks"]
+        for track in tracks:
+            track["selected"] = track["id"] == track_id
+        save_config(config)
+        return demo_command_result("demo mpv set audio", stdout=f"Audio track {track_id} selected")
     return mpv_set_property("aid", track_id)
 
 
 def set_subtitle_track(track_id: int | str) -> dict:
+    if is_demo_mode():
+        config = load_config()
+        tracks = config["demo"]["playback"]["subtitle_tracks"]
+        for track in tracks:
+            track["selected"] = track["id"] == track_id
+        save_config(config)
+        label = "off" if track_id == "no" else str(track_id)
+        return demo_command_result("demo mpv set subtitles", stdout=f"Subtitle track {label} selected")
     return mpv_set_property("sid", track_id)
 
 
 def stop_playback() -> dict:
+    if is_demo_mode():
+        save_resume_position()
+        config = load_config()
+        config["demo"]["playback"]["active_item_id"] = ""
+        config["demo"]["playback"]["paused"] = False
+        config["demo"]["playback"]["time_pos"] = 0
+        save_config(config)
+        return demo_command_result("demo mpv stop", stdout="Playback stopped")
     save_resume_position()
     return mpv_command({"command": ["quit"]})
 
 
 def pause_playback() -> dict:
+    if is_demo_mode():
+        config = load_config()
+        current = bool(config["demo"]["playback"].get("paused"))
+        config["demo"]["playback"]["paused"] = not current
+        save_config(config)
+        return demo_command_result("demo mpv pause", stdout="Playback toggled")
     return mpv_command({"command": ["cycle", "pause"]})
 
 
 def seek_relative(seconds: int) -> dict:
+    if is_demo_mode():
+        config = load_config()
+        playback = config["demo"]["playback"]
+        duration = int(playback.get("duration", 0) or 0)
+        current = int(playback.get("time_pos", 0) or 0)
+        target = max(0, current + seconds)
+        if duration:
+            target = min(duration, target)
+        playback["time_pos"] = target
+        save_config(config)
+        return demo_command_result("demo mpv seek", stdout=f"Seeked to {target}s")
     return mpv_command({"command": ["seek", seconds, "relative"]})
 
 

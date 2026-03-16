@@ -190,6 +190,30 @@ python3 app.py
 
 Then open `http://<pi-ip>:8080`.
 
+## Demo mode for Mac UI testing
+
+If you want to test the full UI on your Mac without Raspberry Pi networking tools, use demo mode.
+
+Edit `.env` in the project root:
+
+```ini
+DEMO_MODE=1
+```
+
+In demo mode:
+
+- Wi-Fi scanning and connecting are mocked
+- Tailscale status, login, and exit node changes are mocked
+- service status is mocked
+- playback controls are mocked
+- Jellyfin browsing stays real, so you can still browse your actual library
+
+To go back to Raspberry Pi behavior, set:
+
+```ini
+DEMO_MODE=0
+```
+
 ## Run as a service
 
 Create `/etc/systemd/system/pi-travel-router.service`:
