@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from ..api_models import ActionResponse, HomeResponse, WifiConnectBody, WifiLiveResponse
 from ..screen_data import action_payload, home_payload, wifi_live_payload
-from ..system_api import connect_wifi, load_settings
+from ..system_api import connect_wifi, disconnect_wifi, load_settings
 
 
 router = APIRouter()
@@ -44,3 +44,16 @@ async def api_wifi_connect(body: WifiConnectBody):
     result = connect_wifi(settings["wifi"]["upstream_interface"], body.ssid.strip(), body.password.strip() or None)
     clean_ssid = body.ssid.strip() or "network"
     return action_payload("wifi_connect", result, f"Connected to {clean_ssid}", "Wi-Fi connection failed", refresh="home")
+
+
+@router.post(
+    "/wifi/disconnect",
+    response_model=ActionResponse,
+    tags=["home"],
+    summary="Disconnect upstream Wi-Fi",
+    description="Disconnects the upstream Wi-Fi interface from its current network.",
+)
+async def api_wifi_disconnect():
+    settings = load_settings()
+    result = disconnect_wifi(settings["wifi"]["upstream_interface"])
+    return action_payload("wifi_disconnect", result, "Wi-Fi disconnected", "Wi-Fi disconnect failed", refresh="home")

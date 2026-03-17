@@ -124,6 +124,21 @@ def connect_wifi(interface: str, ssid: str, password: str | None) -> dict: # DON
     return run_command(command)
 
 
+def disconnect_wifi(interface: str) -> dict:
+    if is_demo_mode():
+        update_demo(
+            "wifi_current",
+            {
+                "connected": False,
+                "ssid": "",
+                "signal": "",
+                "security": "",
+            },
+        )
+        return demo_command_result("demo wifi disconnect", stdout=f"Disconnected {interface}")
+    return run_command(["sudo", "nmcli", "device", "disconnect", interface])
+
+
 def current_wifi(interface: str) -> dict: # DONE
     if is_demo_mode():
         current = demo_state()["wifi_current"]
