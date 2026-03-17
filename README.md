@@ -59,7 +59,7 @@ A lightweight Raspberry Pi travel router and entertainment center built on Raspb
 
 ```bash
 sudo apt update
-sudo apt install -y network-manager hostapd dnsmasq iptables-persistent mpv ffmpeg python3 python3-venv python3-pip curl
+sudo apt install -y network-manager dnsmasq iptables-persistent mpv ffmpeg python3 python3-venv python3-pip curl
 curl -fsSL https://tailscale.com/install.sh | sh
 ```
 
