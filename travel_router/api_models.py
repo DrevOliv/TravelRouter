@@ -8,6 +8,15 @@ class WifiConnectBody(BaseModel):
     password: str = Field("", description="Password for the upstream Wi-Fi network. Leave empty for open networks.")
 
 
+class AuthLoginBody(BaseModel):
+    password: str = Field(..., description="Admin password used to log in to the control panel.")
+
+
+class PasswordChangeBody(BaseModel):
+    new_password: str = Field(..., description="New admin password.")
+    confirm_password: str = Field(..., description="Repeat of the new admin password.")
+
+
 class WifiSettingsBody(BaseModel):
     upstream_interface: str = Field("wlan0", description="Interface used to join upstream Wi-Fi networks.")
     ap_interface: str = Field("wlan1", description="Interface used for the private access point.")

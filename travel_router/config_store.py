@@ -23,6 +23,11 @@ DEFAULT_CONFIG = {
         "user_id": "",
         "device_name": "Pi Travel Router",
     },
+    "auth": {
+        "password_hash": "",
+        "password_salt": "",
+        "session_secret": "",
+    },
     "playback": {
         "active_item_id": "",
         "resume_seconds": {},

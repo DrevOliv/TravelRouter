@@ -2,7 +2,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
+from .auth import ensure_auth_config, get_session_secret
 from .env import load_dotenv
 from .routers import api, router
 
@@ -18,6 +20,7 @@ class NoCacheStaticFiles(StaticFiles):
 
 def create_app() -> FastAPI:
     load_dotenv()
+    ensure_auth_config()
 
     app = FastAPI(
         title="Pi Travel Router API",
@@ -31,6 +34,7 @@ def create_app() -> FastAPI:
             {"name": "remote", "description": "Playback transport and track-selection controls."},
         ],
     )
+    app.add_middleware(SessionMiddleware, secret_key=get_session_secret(), same_site="lax", https_only=False)
     app.mount("/static", NoCacheStaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static")
     app.include_router(router)
     app.include_router(api)

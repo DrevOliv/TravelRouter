@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pi Travel Router Login</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/login.js" defer></script>
+  </head>
+  <body class="login-body">
+    <main class="login-shell">
+      <section class="card login-card">
+        <div class="login-copy">
+          <p class="eyebrow">Protected</p>
+          <h1>Pi Travel Router</h1>
+          <p class="muted">Sign in to manage Wi-Fi, Tailscale, and media playback.</p>
+        </div>
+        <form class="stack" data-login-form>
+          <label>
+            Password
+            <input type="password" name="password" autocomplete="current-password" required>
+          </label>
+          <button type="submit">Log in</button>
+          <p class="muted" data-login-error hidden></p>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

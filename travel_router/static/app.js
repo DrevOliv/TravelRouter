@@ -8,6 +8,11 @@ const SCREEN_TITLES = {
 let mediaSearchTimer = null;
 let homeWifiPollTimer = null;
 
+function redirectToLogin() {
+  stopHomeWifiPolling();
+  window.location.href = "/login";
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -73,6 +78,15 @@ function showToast(payload) {
   }, 2600);
 }
 
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  if (response.status === 401) {
+    redirectToLogin();
+    return null;
+  }
+  return response;
+}
+
 function updateNavState(screen) {
   document.title = `Pi Travel Router - ${SCREEN_TITLES[screen] || "Home"}`;
   document.querySelectorAll("[data-nav-link]").forEach((link) => {
@@ -102,6 +116,36 @@ function renderError(message) {
       <p>${escapeHtml(message)}</p>
     </section>
   `;
+}
+
+function relayoutPackedGrid(selector) {
+  const grid = document.querySelector(selector);
+  if (!(grid instanceof HTMLElement)) return;
+
+  const computed = window.getComputedStyle(grid);
+  const columnCount = computed.gridTemplateColumns.split(" ").filter(Boolean).length;
+  if (columnCount <= 1) {
+    grid.querySelectorAll(":scope > .card").forEach((card) => {
+      if (card instanceof HTMLElement) {
+        card.style.gridRowEnd = "";
+      }
+    });
+    return;
+  }
+
+  const rowHeight = Number.parseFloat(computed.getPropertyValue("grid-auto-rows")) || 1;
+  const rowGap = Number.parseFloat(computed.getPropertyValue("row-gap")) || 0;
+
+  grid.querySelectorAll(":scope > .card").forEach((card) => {
+    if (!(card instanceof HTMLElement)) return;
+    card.style.gridRowEnd = "auto";
+    const span = Math.ceil((card.getBoundingClientRect().height + rowGap) / (rowHeight + rowGap));
+    card.style.gridRowEnd = `span ${Math.max(span, 1)}`;
+  });
+}
+
+function relayoutAllPackedGrids() {
+  relayoutPackedGrid(".dashboard-grid");
 }
 
 function renderCurrentNetworkContent(wifiCurrent) {
@@ -421,6 +465,26 @@ function renderSettings(data) {
         </form>
       </article>
 
+      <article class="card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Security</p>
+            <h3>Admin password</h3>
+          </div>
+        </div>
+        <form action="/api/auth/password" method="post" class="stack" data-api-form data-refresh="settings">
+          <label>
+            New password
+            <input type="password" name="new_password" autocomplete="new-password">
+          </label>
+          <label>
+            Confirm new password
+            <input type="password" name="confirm_password" autocomplete="new-password">
+          </label>
+          <button type="submit" data-action="auth_password">Change password</button>
+        </form>
+      </article>
+
       <article
         class="card"
         data-jellyfin-panel
@@ -709,6 +773,7 @@ function renderScreen(screen, payload) {
   }
   root.innerHTML = renderHome(payload);
   applyWifiSelectionState(root);
+  requestAnimationFrame(relayoutAllPackedGrids);
 }
 
 function stopHomeWifiPolling() {
@@ -732,9 +797,10 @@ async function refreshHomeWifiLive() {
   const typedPassword = passwordInput instanceof HTMLInputElement ? passwordInput.value : "";
 
   try {
-    const response = await fetch("/api/home/wifi-live", {
+    const response = await fetchJson("/api/home/wifi-live", {
       headers: { Accept: "application/json" },
     });
+    if (!response) return;
     const payload = await response.json();
     currentCard.innerHTML = renderCurrentNetworkContent(payload.wifi_current || {});
     connectedDevicesCard.innerHTML = renderConnectedDevicesContent(payload.connected_devices || []);
@@ -746,6 +812,7 @@ async function refreshHomeWifiLive() {
       : null;
     if (nextPasswordInput instanceof HTMLInputElement) nextPasswordInput.value = typedPassword;
     applyWifiSelectionState(document, selectedSsid);
+    requestAnimationFrame(relayoutAllPackedGrids);
   } catch (_error) {
     // Ignore transient polling failures and keep the last rendered Wi-Fi state.
   }
@@ -768,11 +835,12 @@ async function loadCurrentScreen(options = {}) {
   }
 
   try {
-    const response = await fetch(getApiUrl(screen), {
+    const response = await fetchJson(getApiUrl(screen), {
       headers: {
         Accept: "application/json",
       },
     });
+    if (!response) return;
     const payload = await response.json();
     renderScreen(screen, payload);
     if (screen === "home") {
@@ -817,9 +885,10 @@ async function hydrateJellyfinStatus() {
   const message = panel.querySelector("[data-jellyfin-message]");
 
   try {
-    const response = await fetch("/api/settings/jellyfin-status", {
+    const response = await fetchJson("/api/settings/jellyfin-status", {
       headers: { Accept: "application/json" },
     });
+    if (!response) return;
     const payload = await response.json();
     if (payload.ok) {
       if (heroName) heroName.textContent = payload.data?.ServerName || "Connected";
@@ -877,7 +946,7 @@ async function submitApiForm(form, submitter) {
   }
 
   try {
-    const response = await fetch(form.action, {
+    const response = await fetchJson(form.action, {
       method: form.method || "POST",
       body,
       headers: {
@@ -885,9 +954,14 @@ async function submitApiForm(form, submitter) {
         "Content-Type": "application/json",
       },
     });
+    if (!response) return;
     const payload = await response.json();
     updateFeedback(payload);
     flashActionSuccess(submitter, payload.ok);
+    if (payload.ok && payload.action === "auth_logout") {
+      redirectToLogin();
+      return;
+    }
     const desiredRefresh = form.dataset.refresh || payload.refresh;
     if (payload.ok && desiredRefresh && desiredRefresh === getScreenFromPath(window.location.pathname)) {
       await loadCurrentScreen({ silent: true });
@@ -910,9 +984,10 @@ async function submitApiForm(form, submitter) {
 
 async function loadMeta() {
   try {
-    const response = await fetch("/api/meta", {
+    const response = await fetchJson("/api/meta", {
       headers: { Accept: "application/json" },
     });
+    if (!response) return;
     const payload = await response.json();
     const badge = document.querySelector("[data-demo-badge]");
     if (badge) {
@@ -1005,6 +1080,9 @@ document.addEventListener("input", handleInput);
 document.addEventListener("submit", handleSubmit);
 window.addEventListener("popstate", () => {
   loadCurrentScreen();
+});
+window.addEventListener("resize", () => {
+  requestAnimationFrame(relayoutAllPackedGrids);
 });
 window.addEventListener("beforeunload", stopHomeWifiPolling);
 document.addEventListener("DOMContentLoaded", loadMeta);

@@ -42,6 +42,32 @@ body {
     linear-gradient(180deg, #f8f3ea 0%, #f4efe6 52%, #ece4d5 100%);
 }
 
+.login-body {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.login-shell {
+  width: min(28rem, calc(100% - 1.25rem));
+}
+
+.login-card {
+  gap: 1.25rem;
+}
+
+.login-copy {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.login-copy h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  letter-spacing: -0.04em;
+}
+
 .site-header,
 .layout {
   width: min(1160px, calc(100% - 2rem));
@@ -59,6 +85,10 @@ body {
   padding: 1rem 0 0.9rem;
   background: linear-gradient(180deg, rgba(244, 239, 230, 0.96), rgba(244, 239, 230, 0.82));
   backdrop-filter: blur(12px);
+}
+
+.header-logout {
+  margin: 0;
 }
 
 .site-header h1,
@@ -206,10 +236,25 @@ a,
 .dashboard-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.25rem;
+  grid-auto-rows: 8px;
+  grid-auto-flow: row dense;
+}
+
+.settings-grid {
+  display: block;
+  column-count: 2;
+  column-gap: 1.25rem;
+}
+
+.settings-grid > .card {
+  display: inline-grid;
+  width: 100%;
+  margin: 0 0 1.25rem;
+  break-inside: avoid;
 }
 
 .dashboard-card-tall {
-  grid-row: span 2;
+  grid-row: auto;
 }
 
 .card-wide {
@@ -1085,6 +1130,15 @@ button.danger {
   .dashboard-grid {
     grid-template-columns: 1fr;
     gap: 0.9rem;
+  }
+
+  .settings-grid {
+    column-count: 1;
+    column-gap: 0;
+  }
+
+  .settings-grid > .card {
+    margin-bottom: 0.9rem;
   }
 
   .dashboard-card-tall {

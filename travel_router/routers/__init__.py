@@ -1,3 +1,7 @@
+from fastapi import APIRouter, Depends
+
+from ..auth import require_api_auth
+from .api_auth import router as api_auth_router
 from fastapi import APIRouter
 
 from .api_home import router as api_home_router
@@ -10,10 +14,13 @@ from .pages import router as pages_router
 
 router = APIRouter()
 api = APIRouter(prefix="/api")
+protected_api = APIRouter(dependencies=[Depends(require_api_auth)])
 
 router.include_router(pages_router)
-api.include_router(api_meta_router)
-api.include_router(api_home_router)
-api.include_router(api_settings_router)
-api.include_router(api_media_router)
-api.include_router(api_remote_router)
+api.include_router(api_auth_router)
+protected_api.include_router(api_meta_router)
+protected_api.include_router(api_home_router)
+protected_api.include_router(api_settings_router)
+protected_api.include_router(api_media_router)
+protected_api.include_router(api_remote_router)
+api.include_router(protected_api)

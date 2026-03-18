@@ -1,0 +1,18 @@
+[Unit]
+Description=Pi Travel Router
+After=network-online.target NetworkManager.service tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi-travel-router
+Group=pi-travel-router
+WorkingDirectory=/opt/pi-travel-router
+EnvironmentFile=-/etc/default/pi-travel-router
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/pi-travel-router/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
