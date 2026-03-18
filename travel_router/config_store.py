@@ -56,9 +56,9 @@ DEFAULT_CONFIG = {
             "current_exit_node": "",
             "auth_url": "https://login.tailscale.com/demo",
             "exit_nodes": [
-                {"value": "stockholm-exit.demo.ts.net", "label": "Stockholm Exit", "online": True},
-                {"value": "london-exit.demo.ts.net", "label": "London Exit", "online": True},
-                {"value": "newyork-exit.demo.ts.net", "label": "New York Exit", "online": False},
+                {"value": "100.90.10.11", "label": "Stockholm Exit", "dns_name": "stockholm-exit.demo.ts.net", "online": True},
+                {"value": "100.90.10.12", "label": "London Exit", "dns_name": "london-exit.demo.ts.net", "online": True},
+                {"value": "100.90.10.13", "label": "New York Exit", "dns_name": "newyork-exit.demo.ts.net", "online": False},
             ],
         },
         "services": {

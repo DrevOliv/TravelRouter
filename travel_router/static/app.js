@@ -378,6 +378,7 @@ function renderHomeExitNodeContent(data) {
   const exitNodes = data.exitNodes || [];
   const selectedExitNode = data.selectedExitNode || "";
   const exitNodeActive = Boolean(data.exitNodeActive);
+  const selectedExitNodeLabel = exitNodes.find((node) => node.value === selectedExitNode)?.label || selectedExitNode;
   const exitNodeOptions = [
     `<option value="">Choose exit node</option>`,
     ...exitNodes.map(
@@ -398,7 +399,7 @@ function renderHomeExitNodeContent(data) {
     <div class="travel-panel">
       <div class="exit-node-current">
         <span class="mini-stat-label">Saved exit node</span>
-        <strong>${escapeHtml(selectedExitNode || "No exit node selected")}</strong>
+        <strong>${escapeHtml(selectedExitNodeLabel || "No exit node selected")}</strong>
       </div>
 
       <form action="/api/settings/tailscale/toggle" method="post" class="stack exit-node-toggle-form" data-api-form data-refresh-target="home-exit-node" data-refresh-on-error="true">

@@ -12,7 +12,7 @@ from ..api_models import (
     TailscaleSettingsBody,
     WifiSettingsBody,
 )
-from ..screen_data import action_payload, settings_payload
+from ..screen_data import action_payload, parse_exit_nodes, parse_tailscale_json, settings_payload
 from ..system_apis import (
     apply_ap_password,
     apply_ap_ssid,
@@ -20,12 +20,37 @@ from ..system_apis import (
     load_settings,
     tailscale_disable_exit_node,
     tailscale_login,
+    tailscale_status,
     tailscale_up,
     update_settings,
 )
 
 
 router = APIRouter()
+
+
+def resolve_saved_exit_node(selected: str) -> str:
+    selected = selected.strip()
+    if not selected:
+        return ""
+
+    status = tailscale_status()
+    tailscale_data = parse_tailscale_json(status)
+    exit_nodes = parse_exit_nodes(tailscale_data)
+    for node in exit_nodes:
+        if node["value"] == selected or node["label"] == selected:
+            return node["value"]
+
+    peers = tailscale_data.get("Peer") or {}
+    for peer in peers.values():
+        dns_name = str(peer.get("DNSName") or "").rstrip(".")
+        host_name = str(peer.get("HostName") or "").rstrip(".")
+        tailscale_ips = peer.get("TailscaleIPs") or []
+        candidate_ip = str(tailscale_ips[0]).rstrip(".") if tailscale_ips else ""
+        if selected in {dns_name, host_name} and candidate_ip:
+            return candidate_ip
+
+    return selected
 
 
 @router.get(
@@ -161,13 +186,13 @@ async def api_tailscale_selection(body: ExitNodeSelectionBody):
 )
 async def api_tailscale_toggle(body: ExitNodeToggleBody):
     settings = load_settings()
-    selected = settings["tailscale"]["current_exit_node"].strip()
+    selected = resolve_saved_exit_node(settings["tailscale"]["current_exit_node"])
     if body.enabled:
         if not selected:
             return {"ok": False, "action": "tailscale_toggle", "message": "Save an exit node first", "detail": "", "link": "", "refresh": None}
         result = tailscale_up(selected)
         if result["ok"]:
-            update_settings("tailscale", {"exit_node_enabled": True})
+            update_settings("tailscale", {"current_exit_node": selected, "exit_node_enabled": True})
     else:
         result = tailscale_disable_exit_node()
         if result["ok"]:

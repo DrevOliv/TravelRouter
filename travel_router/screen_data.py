@@ -31,10 +31,10 @@ def parse_exit_nodes(tailscale_data: dict) -> list[dict]:
         if not peer.get("ExitNodeOption"):
             continue
         tailscale_ips = peer.get("TailscaleIPs") or []
-        node_value = peer.get("DNSName") or (tailscale_ips[0] if tailscale_ips else peer_id)
+        node_value = tailscale_ips[0] if tailscale_ips else (peer.get("DNSName") or peer_id)
         nodes.append(
             {
-                "value": node_value.rstrip("."),
+                "value": str(node_value).rstrip("."),
                 "label": (peer.get("HostName") or peer.get("DNSName") or node_value).rstrip("."),
                 "online": bool(peer.get("Online")),
             }

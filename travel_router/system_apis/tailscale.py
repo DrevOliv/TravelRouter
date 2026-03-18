@@ -19,7 +19,7 @@ def tailscale_status() -> dict:
             "Peer": {
                 node["value"]: {
                     "HostName": node["label"],
-                    "DNSName": node["value"],
+                    "DNSName": node.get("dns_name", node["value"]),
                     "Online": node["online"],
                     "ExitNodeOption": True,
                     "TailscaleIPs": [node["value"]],
