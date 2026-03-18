@@ -94,7 +94,7 @@ def scan_wifi(interface: str) -> dict:
             rows.append(f"{network['ssid']}:{network['signal']}:{network['security']}")
         return demo_command_result(f"demo wifi scan {interface}", stdout="\n".join(rows))
 
-    result = run_command(["sudo", "nmcli", "device", "wifi", "rescan", "ifname", "wlan0"])
+    result = run_command(["sudo", "nmcli", "device", "wifi", "rescan", "ifname", interface  ])
     if not result["ok"]:
         return result
     return run_command(["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", interface])
