@@ -7,6 +7,7 @@ const SCREEN_TITLES = {
 
 let mediaSearchTimer = null;
 let homeWifiPollTimer = null;
+let screenLoadController = null;
 
 function redirectToLogin() {
   stopHomeWifiPolling();
@@ -107,6 +108,12 @@ function renderLoading() {
   `;
 }
 
+function setRootBusy(isBusy) {
+  const root = document.querySelector("#app-root");
+  if (!(root instanceof HTMLElement)) return;
+  root.classList.toggle("is-busy", isBusy);
+}
+
 function renderError(message) {
   const root = document.querySelector("#app-root");
   if (!root) return;
@@ -157,7 +164,7 @@ function renderCurrentNetworkContent(wifiCurrent) {
           <li><span>Signal</span><strong>${escapeHtml(wifiCurrent.signal)}%</strong></li>
           <li><span>Security</span><strong>${escapeHtml(wifiCurrent.security)}</strong></li>
         </ul>
-        <form action="/api/wifi/disconnect" method="post" data-api-form data-refresh="home">
+        <form action="/api/wifi/disconnect" method="post" data-api-form data-refresh-target="home-wifi">
           <button type="submit" data-action="wifi_disconnect" class="secondary">Disconnect Wi-Fi</button>
         </form>
       </div>
@@ -188,7 +195,7 @@ function renderWifiNetworksContent(wifiNetworks, scanMessage) {
               </span>
               <span class="wifi-network-signal">${escapeHtml(network.signal)}%</span>
             </button>
-            <form action="/api/wifi/connect" method="post" class="stack wifi-connect-inline wifi-inline-panel" data-api-form data-refresh="home" data-wifi-form data-ssid="${escapeAttr(network.ssid)}" hidden>
+            <form action="/api/wifi/connect" method="post" class="stack wifi-connect-inline wifi-inline-panel" data-api-form data-refresh-target="home-wifi" data-wifi-form data-ssid="${escapeAttr(network.ssid)}" hidden>
               <input type="hidden" name="ssid" value="${escapeAttr(network.ssid)}" data-wifi-ssid>
               <label data-wifi-password-wrap>
                 Password
@@ -298,7 +305,7 @@ function renderHome(data) {
       <div class="hero-side">
         <div class="mini-stat">
           <span class="mini-stat-label">Connected</span>
-          <strong>${escapeHtml(wifiCurrent.connected ? wifiCurrent.ssid : "Not connected")}</strong>
+          <strong data-home-hero-connected>${escapeHtml(wifiCurrent.connected ? wifiCurrent.ssid : "Not connected")}</strong>
         </div>
         <div class="mini-stat">
           <span class="mini-stat-label">Upstream NIC</span>
@@ -351,40 +358,12 @@ function renderHome(data) {
         </div>
       </article>
 
-      <article class="card">
-        <div class="travel-panel-head">
-          <div>
-            <h3>Exit node</h3>
-            <p class="muted">Save one node, then turn it on only when you need it.</p>
-          </div>
-          <span class="status-chip">${escapeHtml(exitNodeActive ? "On" : "Off")}</span>
-        </div>
-
-        <div class="travel-panel">
-          <div class="exit-node-current">
-            <span class="mini-stat-label">Saved exit node</span>
-            <strong>${escapeHtml(selectedExitNode || "No exit node selected")}</strong>
-          </div>
-
-          <form action="/api/settings/tailscale/toggle" method="post" class="stack exit-node-toggle-form" data-api-form data-refresh="home" data-refresh-on-error="true">
-            <label class="switch-row switch-control">
-              <span>Use exit node</span>
-              <input type="checkbox" name="enabled" ${exitNodeActive ? "checked" : ""} data-exit-node-toggle ${selectedExitNode ? "" : "disabled"}>
-              <span class="switch-slider" aria-hidden="true"></span>
-            </label>
-          </form>
-
-          <form action="/api/settings/tailscale/selection" method="post" class="stack exit-node-form" data-api-form data-refresh="home" data-refresh-on-error="true">
-            <label>
-              Exit node
-              <select name="exit_node" ${exitNodes.length ? "" : "disabled"}>${exitNodeOptions}</select>
-            </label>
-            <button type="submit" data-action="tailscale_selection" class="secondary" ${exitNodes.length ? "" : "disabled"}>Save exit node</button>
-          </form>
-
-          ${exitNodes.length ? "" : `<p class="muted">No exit nodes available yet.</p>`}
-          ${exitNodes.length && !selectedExitNode ? `<p class="muted">Choose and save an exit node before turning it on.</p>` : ""}
-        </div>
+      <article class="card" data-home-exit-node>
+        ${renderHomeExitNodeContent({
+          exitNodes,
+          selectedExitNode,
+          exitNodeActive,
+        })}
       </article>
 
       <article class="card">
@@ -392,6 +371,55 @@ function renderHome(data) {
         <ul class="status-list">${servicesHtml}</ul>
       </article>
     </section>
+  `;
+}
+
+function renderHomeExitNodeContent(data) {
+  const exitNodes = data.exitNodes || [];
+  const selectedExitNode = data.selectedExitNode || "";
+  const exitNodeActive = Boolean(data.exitNodeActive);
+  const exitNodeOptions = [
+    `<option value="">Choose exit node</option>`,
+    ...exitNodes.map(
+      (node) =>
+        `<option value="${escapeAttr(node.value)}" ${selectedExitNode === node.value ? "selected" : ""}>${escapeHtml(node.label)}${node.online ? " · online" : ""}</option>`
+    ),
+  ].join("");
+
+  return `
+    <div class="travel-panel-head">
+      <div>
+        <h3>Exit node</h3>
+        <p class="muted">Save one node, then turn it on only when you need it.</p>
+      </div>
+      <span class="status-chip">${escapeHtml(exitNodeActive ? "On" : "Off")}</span>
+    </div>
+
+    <div class="travel-panel">
+      <div class="exit-node-current">
+        <span class="mini-stat-label">Saved exit node</span>
+        <strong>${escapeHtml(selectedExitNode || "No exit node selected")}</strong>
+      </div>
+
+      <form action="/api/settings/tailscale/toggle" method="post" class="stack exit-node-toggle-form" data-api-form data-refresh-target="home-exit-node" data-refresh-on-error="true">
+        <label class="switch-row switch-control">
+          <span>Use exit node</span>
+          <input type="checkbox" name="enabled" ${exitNodeActive ? "checked" : ""} data-exit-node-toggle ${selectedExitNode ? "" : "disabled"}>
+          <span class="switch-slider" aria-hidden="true"></span>
+        </label>
+      </form>
+
+      <form action="/api/settings/tailscale/selection" method="post" class="stack exit-node-form" data-api-form data-refresh-target="home-exit-node" data-refresh-on-error="true">
+        <label>
+          Exit node
+          <select name="exit_node" ${exitNodes.length ? "" : "disabled"}>${exitNodeOptions}</select>
+        </label>
+        <button type="submit" data-action="tailscale_selection" class="secondary" ${exitNodes.length ? "" : "disabled"}>Save exit node</button>
+      </form>
+
+      ${exitNodes.length ? "" : `<p class="muted">No exit nodes available yet.</p>`}
+      ${exitNodes.length && !selectedExitNode ? `<p class="muted">Choose and save an exit node before turning it on.</p>` : ""}
+    </div>
   `;
 }
 
@@ -687,16 +715,16 @@ function renderRemote(data) {
           </div>
         </div>
         <div class="remote-transport-grid">
-          <form action="/api/remote/rewind" method="post" data-api-form data-refresh="remote">
+          <form action="/api/remote/rewind" method="post" data-api-form data-refresh-target="remote-state">
             <button type="submit" data-action="remote_rewind" class="transport-button secondary">-30s</button>
           </form>
-          <form action="/api/remote/pause" method="post" data-api-form data-refresh="remote">
+          <form action="/api/remote/pause" method="post" data-api-form data-refresh-target="remote-state">
             <button type="submit" data-action="remote_pause" class="transport-button transport-primary">${playback.paused ? "Resume" : "Pause"}</button>
           </form>
-          <form action="/api/remote/forward" method="post" data-api-form data-refresh="remote">
+          <form action="/api/remote/forward" method="post" data-api-form data-refresh-target="remote-state">
             <button type="submit" data-action="remote_forward" class="transport-button secondary">+30s</button>
           </form>
-          <form action="/api/remote/stop" method="post" data-api-form data-refresh="remote" class="transport-stop">
+          <form action="/api/remote/stop" method="post" data-api-form data-refresh-target="remote-state" class="transport-stop">
             <button type="submit" data-action="remote_stop" class="danger">Stop playback</button>
           </form>
         </div>
@@ -710,7 +738,7 @@ function renderRemote(data) {
             <h3>Language</h3>
           </div>
         </div>
-        <form action="/api/remote/audio" method="post" class="stack" data-api-form data-refresh="remote">
+        <form action="/api/remote/audio" method="post" class="stack" data-api-form data-refresh-target="remote-state">
           <label>
             Active audio track
             <select name="track_id">
@@ -733,7 +761,7 @@ function renderRemote(data) {
             <h3>Track</h3>
           </div>
         </div>
-        <form action="/api/remote/subtitles" method="post" class="stack" data-api-form data-refresh="remote">
+        <form action="/api/remote/subtitles" method="post" class="stack" data-api-form data-refresh-target="remote-state">
           <label>
             Subtitle track
             <select name="track_id">
@@ -776,6 +804,72 @@ function renderScreen(screen, payload) {
   requestAnimationFrame(relayoutAllPackedGrids);
 }
 
+async function fetchScreenPayload(screen) {
+  const response = await fetchJson(getApiUrl(screen), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+  if (!response) return null;
+  return response.json();
+}
+
+async function refreshHomeExitNodeWidget() {
+  const widget = document.querySelector("[data-home-exit-node]");
+  if (!(widget instanceof HTMLElement)) return;
+  const payload = await fetchScreenPayload("home");
+  if (!payload) return;
+  widget.innerHTML = renderHomeExitNodeContent({
+    exitNodes: payload.exit_nodes || [],
+    selectedExitNode: payload.selected_exit_node || "",
+    exitNodeActive: payload.exit_node_active,
+  });
+  requestAnimationFrame(relayoutAllPackedGrids);
+}
+
+async function refreshRemoteState() {
+  const shell = document.querySelector(".remote-shell");
+  if (!(shell instanceof HTMLElement)) return;
+  const payload = await fetchScreenPayload("remote");
+  if (!payload) return;
+  renderScreen("remote", payload);
+}
+
+async function handleActionRefresh(form, payload) {
+  const refreshTarget = form.dataset.refreshTarget || "";
+  if (refreshTarget === "home-wifi") {
+    await refreshHomeWifiLive();
+    return true;
+  }
+  if (refreshTarget === "home-exit-node") {
+    await refreshHomeExitNodeWidget();
+    return true;
+  }
+  if (refreshTarget === "remote-state") {
+    await refreshRemoteState();
+    return true;
+  }
+
+  const action = payload.action || "";
+  if (action === "wifi_connect" || action === "wifi_disconnect") {
+    await refreshHomeWifiLive();
+    return true;
+  }
+  if (action === "tailscale_toggle" || action === "tailscale_selection") {
+    await refreshHomeExitNodeWidget();
+    return true;
+  }
+  if (action.startsWith("remote_")) {
+    await refreshRemoteState();
+    return true;
+  }
+  if (action === "jellyfin_settings") {
+    hydrateJellyfinStatus();
+    return true;
+  }
+  return false;
+}
+
 function stopHomeWifiPolling() {
   if (homeWifiPollTimer !== null) {
     window.clearInterval(homeWifiPollTimer);
@@ -789,6 +883,7 @@ async function refreshHomeWifiLive() {
   const currentCard = document.querySelector("[data-home-current-network]");
   const wifiList = document.querySelector("[data-home-wifi-list]");
   const connectedDevicesCard = document.querySelector("[data-home-connected-devices]");
+  const heroConnected = document.querySelector("[data-home-hero-connected]");
   if (!(currentCard instanceof HTMLElement) || !(wifiList instanceof HTMLElement) || !(connectedDevicesCard instanceof HTMLElement)) return;
 
   const activeWifiRow = document.querySelector("[data-wifi-select].is-active");
@@ -804,6 +899,9 @@ async function refreshHomeWifiLive() {
     const payload = await response.json();
     currentCard.innerHTML = renderCurrentNetworkContent(payload.wifi_current || {});
     connectedDevicesCard.innerHTML = renderConnectedDevicesContent(payload.connected_devices || []);
+    if (heroConnected instanceof HTMLElement) {
+      heroConnected.textContent = payload.wifi_current?.connected ? payload.wifi_current.ssid : "Not connected";
+    }
     const scanMessage = payload.wifi_scan?.stdout || payload.wifi_scan?.stderr || "No scan data yet.";
     wifiList.innerHTML = renderWifiNetworksContent(payload.wifi_networks || [], scanMessage);
 
@@ -827,18 +925,26 @@ function startHomeWifiPolling() {
 }
 
 async function loadCurrentScreen(options = {}) {
-  const { silent = false } = options;
+  const { silent = true } = options;
   const screen = getScreenFromPath(window.location.pathname);
   updateNavState(screen);
-  if (!silent) {
+  const root = document.querySelector("#app-root");
+  if (!silent && root?.children.length === 0) {
     renderLoading();
   }
+
+  if (screenLoadController) {
+    screenLoadController.abort();
+  }
+  screenLoadController = new AbortController();
+  setRootBusy(true);
 
   try {
     const response = await fetchJson(getApiUrl(screen), {
       headers: {
         Accept: "application/json",
       },
+      signal: screenLoadController.signal,
     });
     if (!response) return;
     const payload = await response.json();
@@ -849,15 +955,18 @@ async function loadCurrentScreen(options = {}) {
       stopHomeWifiPolling();
     }
   } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return;
     stopHomeWifiPolling();
     renderError(String(error));
+  } finally {
+    setRootBusy(false);
   }
 }
 
 function navigate(url) {
   const nextUrl = new URL(url, window.location.origin);
   window.history.pushState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
-  loadCurrentScreen();
+  loadCurrentScreen({ silent: true });
 }
 
 function triggerLiveMediaSearch(form) {
@@ -962,10 +1071,11 @@ async function submitApiForm(form, submitter) {
       redirectToLogin();
       return;
     }
+    const handled = await handleActionRefresh(form, payload);
     const desiredRefresh = form.dataset.refresh || payload.refresh;
-    if (payload.ok && desiredRefresh && desiredRefresh === getScreenFromPath(window.location.pathname)) {
+    if (!handled && payload.ok && desiredRefresh && desiredRefresh === getScreenFromPath(window.location.pathname)) {
       await loadCurrentScreen({ silent: true });
-    } else if (!payload.ok && form.dataset.refreshOnError === "true" && desiredRefresh === getScreenFromPath(window.location.pathname)) {
+    } else if (!handled && !payload.ok && form.dataset.refreshOnError === "true" && desiredRefresh === getScreenFromPath(window.location.pathname)) {
       await loadCurrentScreen({ silent: true });
     }
   } catch (error) {
@@ -1079,7 +1189,7 @@ document.addEventListener("change", handleChange);
 document.addEventListener("input", handleInput);
 document.addEventListener("submit", handleSubmit);
 window.addEventListener("popstate", () => {
-  loadCurrentScreen();
+  loadCurrentScreen({ silent: true });
 });
 window.addEventListener("resize", () => {
   requestAnimationFrame(relayoutAllPackedGrids);

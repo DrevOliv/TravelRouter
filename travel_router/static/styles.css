@@ -178,6 +178,11 @@ a,
   display: grid;
   gap: 1.25rem;
   align-content: start;
+  transition: opacity 140ms ease;
+}
+
+#app-root.is-busy {
+  opacity: 0.985;
 }
 
 #app-root > section,
@@ -1041,28 +1046,54 @@ button.danger {
 }
 
 @media (max-width: 700px) {
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(17, 109, 110, 0.06), transparent 26%),
+      linear-gradient(180deg, #f8f3ea 0%, #f4efe6 58%, #ece4d5 100%);
+  }
+
   .site-header {
     width: min(1160px, calc(100% - 1rem));
-    padding-top: 0.55rem;
-    padding-bottom: 0.45rem;
+    position: relative;
+    top: 0;
+    align-items: start;
+    padding-top: 0.7rem;
+    padding-bottom: 0.1rem;
   }
 
   .layout {
     width: min(1160px, calc(100% - 1rem));
-    gap: 0.8rem;
+    gap: 0.9rem;
     padding-bottom: 5.7rem;
   }
 
   #app-root {
-    gap: 0.95rem;
+    gap: 0.9rem;
   }
 
   .site-header h1 {
-    font-size: 1.2rem;
+    font-size: 1.15rem;
+    line-height: 1;
   }
 
   .nav-desktop {
     display: none;
+  }
+
+  .brand-block {
+    gap: 0.3rem;
+  }
+
+  .mode-badge {
+    padding: 0.2rem 0.48rem;
+    font-size: 0.68rem;
+  }
+
+  .header-logout button {
+    min-height: 40px;
+    padding: 0.65rem 0.9rem;
+    border-radius: 14px;
+    font-size: 0.84rem;
   }
 
   .mobile-tabbar {
@@ -1110,12 +1141,14 @@ button.danger {
   }
 
   .page-hero {
+    padding: 1rem;
     grid-template-columns: 1fr;
-    gap: 0.8rem;
+    gap: 0.55rem;
   }
 
   .hero-copy h2 {
-    font-size: 1.35rem;
+    font-size: 1.55rem;
+    line-height: 0.95;
   }
 
   .hero-side {
@@ -1123,22 +1156,30 @@ button.danger {
   }
 
   .card {
-    padding: 0.95rem;
-    border-radius: 22px;
+    padding: 0.95rem 0.9rem;
+    border-radius: 20px;
+    box-shadow: 0 12px 24px rgba(73, 55, 28, 0.08);
   }
 
   .dashboard-grid {
     grid-template-columns: 1fr;
     gap: 0.9rem;
+    grid-auto-rows: auto;
+    grid-auto-flow: row;
   }
 
   .settings-grid {
-    column-count: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    column-count: auto;
     column-gap: 0;
+    gap: 0.9rem;
   }
 
   .settings-grid > .card {
-    margin-bottom: 0.9rem;
+    display: grid;
+    width: 100%;
+    margin: 0;
   }
 
   .dashboard-card-tall {
@@ -1150,11 +1191,30 @@ button.danger {
   }
 
   .card > h3 {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.7rem;
+    font-size: 1.05rem;
+    line-height: 1.05;
+  }
+
+  .section-head,
+  .travel-panel-head,
+  .playback-meta {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .travel-panel-head,
+  .switch-row {
+    align-items: start;
+  }
+
+  .status-chip {
+    justify-self: start;
   }
 
   .media-heading-copy h2 {
-    font-size: 1.4rem;
+    font-size: 1.55rem;
+    line-height: 0.97;
   }
 
   .media-toolbar {
@@ -1173,29 +1233,31 @@ button.danger {
 
   .media-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.7rem;
+    gap: 0.75rem;
   }
 
   .media-card {
-    padding: 0.55rem;
+    gap: 0.55rem;
+    padding: 0.5rem;
+    border-radius: 20px;
   }
 
   .poster-frame {
-    border-radius: 18px;
+    border-radius: 16px;
   }
 
   .poster-overlay {
-    padding: 0.65rem;
+    padding: 0.55rem;
   }
 
   .play-icon {
-    width: 2.6rem;
-    height: 2.6rem;
+    width: 2.35rem;
+    height: 2.35rem;
   }
 
   .media-card-copy h3 {
-    min-height: 2.1em;
-    font-size: 0.84rem;
+    min-height: 2.2em;
+    font-size: 0.86rem;
   }
 
   .media-kicker {
@@ -1218,19 +1280,42 @@ button.danger {
   }
 
   .remote-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .remote-transport-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
   }
 
   .transport-stop {
     grid-column: 1 / -1;
   }
 
+  .transport-button {
+    min-height: 3.6rem;
+    border-radius: 18px;
+    font-size: 0.95rem;
+  }
+
   .wifi-network-row {
-    padding: 0.78rem 0.82rem;
+    padding: 0.8rem;
+    border-radius: 18px;
+    box-shadow: none;
+  }
+
+  .wifi-network-main strong {
+    font-size: 0.96rem;
+  }
+
+  .wifi-network-main small,
+  .wifi-network-signal {
+    font-size: 0.86rem;
+  }
+
+  .wifi-connect-inline {
+    padding: 0.85rem;
+    border-radius: 18px;
   }
 
   .travel-connect-grid {
@@ -1245,19 +1330,59 @@ button.danger {
   }
 
   .status-list li {
-    align-items: center;
+    align-items: start;
+    gap: 0.5rem;
+    padding-bottom: 0.65rem;
   }
 
-  .playback-meta,
-  .section-head {
-    grid-template-columns: 1fr;
+  .status-list li span,
+  .status-list li strong {
+    min-width: 0;
+  }
+
+  .device-list li {
+    align-items: start;
+  }
+
+  .device-list li small {
+    line-height: 1.35;
+    word-break: break-word;
+  }
+
+  .wifi-qr-block img {
+    width: min(100%, 180px);
+    padding: 0.7rem;
+    border-radius: 18px;
   }
 
   button,
-  .button,
+  .button {
+    min-height: 44px;
+    padding: 0.8rem 0.9rem;
+    border-radius: 14px;
+  }
+
   input,
   select {
-    min-height: 46px;
+    min-height: 44px;
+    padding: 0.8rem 0.85rem;
+    border-radius: 14px;
+  }
+
+  .switch-slider {
+    width: 2.9rem;
+    height: 1.7rem;
+  }
+
+  .switch-slider::after {
+    top: 0.16rem;
+    left: 0.18rem;
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .switch-control input[type="checkbox"]:checked + .switch-slider::after {
+    transform: translateX(1.06rem);
   }
 
   .terminal {
