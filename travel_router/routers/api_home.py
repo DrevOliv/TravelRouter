@@ -1,8 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from ..api_models import ActionResponse, HomeResponse, WifiConnectBody, WifiLiveResponse
 from ..screen_data import action_payload, home_payload, wifi_live_payload
-from ..system_api import connect_wifi, disconnect_wifi, load_settings
+from ..system_apis import connect_wifi, disconnect_wifi, load_settings, wifi_qr_svg
 
 
 router = APIRouter()
@@ -29,6 +29,18 @@ async def api_home():
 async def api_home_wifi_live():
     settings = load_settings()
     return wifi_live_payload(settings["wifi"]["upstream_interface"])
+
+
+@router.get(
+    "/home/ap-qr",
+    tags=["home"],
+    summary="Get access-point Wi-Fi QR code",
+    description="Returns an SVG QR code for joining the private travel-router Wi-Fi network.",
+)
+async def api_home_ap_qr():
+    settings = load_settings()
+    svg = wifi_qr_svg(settings["wifi"]["ap_ssid"], settings["wifi"]["ap_password"])
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 @router.post(

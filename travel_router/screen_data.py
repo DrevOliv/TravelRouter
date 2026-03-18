@@ -1,6 +1,6 @@
 import json
 
-from .system_api import (
+from .system_apis import (
     all_resume_seconds,
     ap_connected_devices,
     current_wifi,

@@ -275,6 +275,19 @@ function renderHome(data) {
         </div>
       </article>
 
+      <article class="card wifi-qr-card">
+        <div class="section-head">
+          <div>
+            <h3>Private Wi-Fi QR</h3>
+            <p class="muted">${escapeHtml(settings.wifi?.ap_ssid || "PiTravelHub")}</p>
+          </div>
+        </div>
+        <div class="wifi-qr-block">
+          <img src="/api/home/ap-qr" alt="QR code for the private Wi-Fi network">
+          <p class="muted">Scan to join the router Wi-Fi quickly.</p>
+        </div>
+      </article>
+
       <article class="card">
         <h3>Connected devices</h3>
         <div data-home-connected-devices>
@@ -372,7 +385,39 @@ function renderSettings(data) {
             AP interface
             <input type="text" name="ap_interface" value="${escapeAttr(settings.wifi?.ap_interface || "wlan1")}">
           </label>
-          <button type="submit" data-action="wifi_settings">Save Wi-Fi settings</button>
+          <button type="submit" data-action="wifi_settings">Save interfaces</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Private Wi-Fi</p>
+            <h3>SSID</h3>
+          </div>
+        </div>
+        <form action="/api/settings/wifi/ap-ssid" method="post" class="stack" data-api-form data-refresh="settings">
+          <label>
+            Network name
+            <input type="text" name="ap_ssid" value="${escapeAttr(settings.wifi?.ap_ssid || "PiTravelHub")}">
+          </label>
+          <button type="submit" data-action="wifi_ap_ssid">Save SSID</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Private Wi-Fi</p>
+            <h3>Password</h3>
+          </div>
+        </div>
+        <form action="/api/settings/wifi/ap-password" method="post" class="stack" data-api-form data-refresh="settings">
+          <label>
+            Network password
+            <input type="password" name="ap_password" value="${escapeAttr(settings.wifi?.ap_password || "ChangeThisPassword")}">
+          </label>
+          <button type="submit" data-action="wifi_ap_password">Save password</button>
         </form>
       </article>
 

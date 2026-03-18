@@ -9,6 +9,8 @@ DEFAULT_CONFIG = {
     "wifi": {
         "upstream_interface": "wlan0",
         "ap_interface": "wlan1",
+        "ap_ssid": "PiTravelHub",
+        "ap_password": "ChangeThisPassword",
     },
     "tailscale": {
         "advertise_exit_node": False,

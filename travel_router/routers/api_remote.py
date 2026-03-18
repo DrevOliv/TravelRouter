@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from ..api_models import ActionResponse, RemoteResponse, SubtitleBody, TrackBody
 from ..screen_data import action_payload, remote_payload
-from ..system_api import pause_playback, seek_relative, set_audio_track, set_subtitle_track, stop_playback
+from ..system_apis import pause_playback, seek_relative, set_audio_track, set_subtitle_track, stop_playback
 
 
 router = APIRouter()

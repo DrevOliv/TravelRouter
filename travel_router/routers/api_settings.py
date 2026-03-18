@@ -2,6 +2,8 @@ from fastapi import APIRouter
 
 from ..api_models import (
     ActionResponse,
+    ApPasswordBody,
+    ApSsidBody,
     ExitNodeSelectionBody,
     ExitNodeToggleBody,
     JellyfinSettingsBody,
@@ -11,7 +13,16 @@ from ..api_models import (
     WifiSettingsBody,
 )
 from ..screen_data import action_payload, settings_payload
-from ..system_api import jellyfin_system_info, load_settings, tailscale_disable_exit_node, tailscale_login, tailscale_up, update_settings
+from ..system_apis import (
+    apply_ap_password,
+    apply_ap_ssid,
+    jellyfin_system_info,
+    load_settings,
+    tailscale_disable_exit_node,
+    tailscale_login,
+    tailscale_up,
+    update_settings,
+)
 
 
 router = APIRouter()
@@ -47,8 +58,41 @@ async def api_settings_jellyfin_status():
     description="Updates which interfaces are used for upstream Wi-Fi and the private access point.",
 )
 async def api_wifi_settings(body: WifiSettingsBody):
-    update_settings("wifi", {"upstream_interface": body.upstream_interface.strip(), "ap_interface": body.ap_interface.strip()})
+    update_settings(
+        "wifi",
+        {
+            "upstream_interface": body.upstream_interface.strip(),
+            "ap_interface": body.ap_interface.strip(),
+        },
+    )
     return {"ok": True, "action": "wifi_settings", "message": "Wi-Fi interfaces saved", "detail": "", "link": "", "refresh": "settings"}
+
+
+@router.post(
+    "/settings/wifi/ap-ssid",
+    response_model=ActionResponse,
+    tags=["settings"],
+    summary="Save private Wi-Fi SSID",
+    description="Updates the private AP SSID and applies it to hostapd.",
+)
+async def api_wifi_ap_ssid(body: ApSsidBody):
+    ap_ssid = body.ap_ssid.strip()
+    if not ap_ssid:
+        return {"ok": False, "action": "wifi_ap_ssid", "message": "SSID cannot be empty", "detail": "", "link": "", "refresh": None}
+    result = apply_ap_ssid(ap_ssid)
+    return action_payload("wifi_ap_ssid", result, "Private Wi-Fi SSID saved", "Private Wi-Fi SSID failed", refresh="settings")
+
+
+@router.post(
+    "/settings/wifi/ap-password",
+    response_model=ActionResponse,
+    tags=["settings"],
+    summary="Save private Wi-Fi password",
+    description="Updates the private AP password and applies it to hostapd.",
+)
+async def api_wifi_ap_password(body: ApPasswordBody):
+    result = apply_ap_password(body.ap_password.strip())
+    return action_payload("wifi_ap_password", result, "Private Wi-Fi password saved", "Private Wi-Fi password failed", refresh="settings")
 
 
 @router.post(

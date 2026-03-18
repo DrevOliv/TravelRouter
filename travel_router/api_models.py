@@ -13,6 +13,14 @@ class WifiSettingsBody(BaseModel):
     ap_interface: str = Field("wlan1", description="Interface used for the private access point.")
 
 
+class ApSsidBody(BaseModel):
+    ap_ssid: str = Field("PiTravelHub", description="SSID broadcast by the private travel-router access point.")
+
+
+class ApPasswordBody(BaseModel):
+    ap_password: str = Field("ChangeThisPassword", description="Password used for the private travel-router access point.")
+
+
 class TailscaleSettingsBody(BaseModel):
     use_exit_node: bool = Field(False, description="Enable routing traffic through a Tailscale exit node.")
     exit_node: str = Field("", description="Selected Tailscale exit node DNS name or IP.")
@@ -92,6 +100,8 @@ class ConnectedDevice(BaseModel):
 class WifiConfig(BaseModel):
     upstream_interface: str = Field(..., description="Interface used for upstream Wi-Fi.")
     ap_interface: str = Field(..., description="Interface used for the private access point.")
+    ap_ssid: str = Field(..., description="SSID broadcast by the private access point.")
+    ap_password: str = Field(..., description="Password used by the private access point.")
 
 
 class TailscaleConfig(BaseModel):

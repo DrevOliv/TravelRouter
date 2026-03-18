@@ -555,6 +555,32 @@ button.danger {
   font-size: 0.82rem;
 }
 
+.wifi-qr-card {
+  justify-items: center;
+}
+
+.wifi-qr-block {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  width: 100%;
+}
+
+.wifi-qr-block img {
+  width: min(100%, 220px);
+  aspect-ratio: 1;
+  padding: 0.9rem;
+  border-radius: 24px;
+  background: #fffdf9;
+  border: 1px solid rgba(17, 109, 110, 0.12);
+  box-shadow: var(--shadow-soft);
+}
+
+.wifi-qr-block p {
+  margin: 0;
+  text-align: center;
+}
+
 .ok {
   color: var(--ok);
 }
