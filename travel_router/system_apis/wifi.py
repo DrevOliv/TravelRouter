@@ -1,35 +1,25 @@
 import io
 import json
-from pathlib import Path
+import os
 
 from ..env import is_demo_mode
 from .command import command_result, demo_command_result, run_command
 from .config import demo_state, load_settings, update_demo, update_settings
 
 
-DNSMASQ_LEASES_PATH = Path("/var/lib/misc/dnsmasq.leases")
-HOSTAPD_CONFIG_PATH = Path("/etc/hostapd/hostapd.conf")
+DNSMASQ_LEASES_PATH = "/var/lib/misc/dnsmasq.leases"
+NM_DNSMASQ_LEASES_TEMPLATE = "/var/lib/nm-dnsmasq-{interface}.leases"
+AP_CONNECTION_NAME = "MyHotspot"
 
 
-def update_hostapd_setting(key: str, value: str) -> None:
-    if HOSTAPD_CONFIG_PATH.exists():
-        lines = HOSTAPD_CONFIG_PATH.read_text(encoding="utf-8").splitlines()
-    else:
-        lines = []
-
-    updated = False
-    new_lines = []
-    prefix = f"{key}="
-    for line in lines:
-        if line.startswith(prefix):
-            new_lines.append(f"{key}={value}")
-            updated = True
-        else:
-            new_lines.append(line)
-    if not updated:
-        new_lines.append(f"{key}={value}")
-
-    HOSTAPD_CONFIG_PATH.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+def reload_ap_connection(profile_name: str) -> dict:
+    down_result = run_command(["sudo", "nmcli", "con", "down", profile_name])
+    up_result = run_command(["sudo", "nmcli", "con", "up", profile_name])
+    if up_result["ok"]:
+        return up_result
+    if down_result["ok"]:
+        return up_result
+    return down_result if not down_result["ok"] else up_result
 
 
 def apply_ap_ssid(ap_ssid: str) -> dict:
@@ -37,36 +27,36 @@ def apply_ap_ssid(ap_ssid: str) -> dict:
         update_settings("wifi", {"ap_ssid": ap_ssid})
         return demo_command_result("demo ap ssid", stdout=f"AP SSID updated to {ap_ssid}")
 
-    try:
-        update_hostapd_setting("ssid", ap_ssid)
-    except OSError as exc:
-        return command_result("hostapd ssid update", stderr=str(exc), ok=False)
+    modify = run_command(["sudo", "nmcli", "con", "modify", AP_CONNECTION_NAME, "802-11-wireless.ssid", ap_ssid])
+    if not modify["ok"]:
+        return modify
 
-    update_settings("wifi", {"ap_ssid": ap_ssid})
-    restart = run_command(["sudo", "systemctl", "restart", "hostapd"])
+    restart = reload_ap_connection(AP_CONNECTION_NAME)
     if not restart["ok"]:
         return restart
-    return command_result("hostapd ssid update", stdout=f"AP SSID updated to {ap_ssid}")
+
+    update_settings("wifi", {"ap_ssid": ap_ssid})
+    return command_result("nmcli ap ssid update", stdout=f"AP SSID updated to {ap_ssid}")
 
 
 def apply_ap_password(ap_password: str) -> dict:
     if len(ap_password) < 8:
-        return command_result("hostapd password update", stderr="Password must be at least 8 characters.", ok=False)
+        return command_result("nmcli ap password update", stderr="Password must be at least 8 characters.", ok=False)
 
     if is_demo_mode():
         update_settings("wifi", {"ap_password": ap_password})
         return demo_command_result("demo ap password", stdout="AP password updated")
 
-    try:
-        update_hostapd_setting("wpa_passphrase", ap_password)
-    except OSError as exc:
-        return command_result("hostapd password update", stderr=str(exc), ok=False)
+    modify = run_command(["sudo", "nmcli", "con", "modify", AP_CONNECTION_NAME, "802-11-wireless-security.psk", ap_password])
+    if not modify["ok"]:
+        return modify
 
-    update_settings("wifi", {"ap_password": ap_password})
-    restart = run_command(["sudo", "systemctl", "restart", "hostapd"])
+    restart = reload_ap_connection(AP_CONNECTION_NAME)
     if not restart["ok"]:
         return restart
-    return command_result("hostapd password update", stdout="AP password updated")
+
+    update_settings("wifi", {"ap_password": ap_password})
+    return command_result("nmcli ap password update", stdout="AP password updated")
 
 
 def wifi_qr_payload(ssid: str, password: str) -> str:
@@ -193,9 +183,13 @@ def ap_connected_devices(interface: str) -> list[dict]:
         return sorted(devices, key=lambda device: ((device.get("name") or "").lower(), device.get("ip") or ""))
 
     lease_map = {}
-    if DNSMASQ_LEASES_PATH.exists():
+    lease_paths = [NM_DNSMASQ_LEASES_TEMPLATE.format(interface=interface), DNSMASQ_LEASES_PATH]
+    lease_path = next((path for path in lease_paths if os.path.exists(path)), "")
+    if lease_path:
         try:
-            for row in DNSMASQ_LEASES_PATH.read_text(encoding="utf-8").splitlines():
+            with open(lease_path, "r", encoding="utf-8") as handle:
+                rows = handle.read().splitlines()
+            for row in rows:
                 parts = row.split()
                 if len(parts) < 4:
                     continue

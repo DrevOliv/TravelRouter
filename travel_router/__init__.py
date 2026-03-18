@@ -7,6 +7,15 @@ from .env import load_dotenv
 from .routers import api, router
 
 
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+
 def create_app() -> FastAPI:
     load_dotenv()
 
@@ -22,7 +31,7 @@ def create_app() -> FastAPI:
             {"name": "remote", "description": "Playback transport and track-selection controls."},
         ],
     )
-    app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static")
+    app.mount("/static", NoCacheStaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static")
     app.include_router(router)
     app.include_router(api)
     return app

@@ -73,7 +73,7 @@ async def api_wifi_settings(body: WifiSettingsBody):
     response_model=ActionResponse,
     tags=["settings"],
     summary="Save private Wi-Fi SSID",
-    description="Updates the private AP SSID and applies it to hostapd.",
+    description="Updates the private AP SSID on the existing NetworkManager access-point profile.",
 )
 async def api_wifi_ap_ssid(body: ApSsidBody):
     ap_ssid = body.ap_ssid.strip()
@@ -88,7 +88,7 @@ async def api_wifi_ap_ssid(body: ApSsidBody):
     response_model=ActionResponse,
     tags=["settings"],
     summary="Save private Wi-Fi password",
-    description="Updates the private AP password and applies it to hostapd.",
+    description="Updates the private AP password on the existing NetworkManager access-point profile.",
 )
 async def api_wifi_ap_password(body: ApPasswordBody):
     result = apply_ap_password(body.ap_password.strip())
