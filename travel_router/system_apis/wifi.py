@@ -95,7 +95,7 @@ def scan_wifi(interface: str) -> dict:
         return demo_command_result(f"demo wifi scan {interface}", stdout="\n".join(rows))
 
     # Test: sudo nmcli device wifi rescan ifname wlan1
-    return run_command(["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", interface, "--rescan", "yes"])
+    return run_command(["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", interface, "--rescan", "yes"])
     # nmcli -t -f SSID,SIGNAL,SECURITY device wifi list ifname wlan1
 
 def connect_wifi(interface: str, ssid: str, password: str | None) -> dict:
@@ -120,7 +120,6 @@ def connect_wifi(interface: str, ssid: str, password: str | None) -> dict:
     if password:
         command.extend(["password", password])
     return run_command(command)
-
 
 def disconnect_wifi(interface: str) -> dict:
     if is_demo_mode():

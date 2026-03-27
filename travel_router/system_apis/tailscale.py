@@ -49,9 +49,9 @@ def tailscale_up(exit_node: str | None = None) -> dict:
         return demo_command_result("demo tailscale up", stdout=stdout)
     
     
-    command = ["sudo", "tailscale", "up"]
+    command = ["sudo", "tailscale", "set"]
     if exit_node:
-        command.extend(["--exit-node", exit_node])
+        command.extend(["--exit-node", exit_node, "--exit-node-allow-lan-access"])
     return run_command(command)
 
 def tailscale_disable_exit_node() -> dict:
