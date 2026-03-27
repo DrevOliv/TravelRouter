@@ -26,7 +26,11 @@ apt install -y \
   mpv \
   ffmpeg \
   curl \
-  rsync
+  dosfstools \
+  exfatprogs \
+  openssh-client \
+  rsync \
+  sshpass
 
 if ! command -v tailscale >/dev/null 2>&1; then
   curl -fsSL https://tailscale.com/install.sh | sh
@@ -45,6 +49,10 @@ if ! id -u "${APP_USER}" >/dev/null 2>&1; then
     --shell /usr/sbin/nologin \
     "${APP_USER}"
 fi
+
+mkdir -p "/var/lib/${APP_NAME}/import_mounts"
+mkdir -p "/var/lib/${APP_NAME}/import_runtime/manifests"
+chown -R "${APP_USER}:${APP_GROUP}" "/var/lib/${APP_NAME}"
 
 mkdir -p "${APP_DIR}"
 rsync -a \
@@ -69,7 +77,7 @@ EOF
 fi
 
 cat > "${SUDOERS_FILE}" <<EOF
-${APP_USER} ALL=(root) NOPASSWD: /usr/bin/nmcli, /usr/bin/tailscale, /usr/bin/systemctl
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/nmcli, /usr/bin/tailscale, /usr/bin/systemctl, /usr/bin/mount, /usr/bin/umount
 EOF
 chmod 0440 "${SUDOERS_FILE}"
 visudo -cf "${SUDOERS_FILE}"

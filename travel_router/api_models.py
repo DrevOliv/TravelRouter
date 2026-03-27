@@ -126,10 +126,21 @@ class JellyfinConfig(BaseModel):
     device_name: str = Field("", description="Configured Jellyfin device name.")
 
 
+class TransferConfig(BaseModel):
+    host: str = Field("", description="TrueNAS SSH host or IP.")
+    port: int = Field(22, description="TrueNAS SSH port.")
+    username: str = Field("", description="TrueNAS SSH username.")
+    auth_mode: str = Field("ssh_key", description="Authentication mode used for rsync over SSH.")
+    password: str = Field("", description="SSH password when password auth is selected.")
+    private_key_path: str = Field("", description="Path to the SSH private key on the Raspberry Pi when key auth is selected.")
+    last_destination_path: str = Field("", description="Most recently used destination path for import jobs.")
+
+
 class AppSettings(BaseModel):
     wifi: WifiConfig
     tailscale: TailscaleConfig
     jellyfin: JellyfinConfig
+    transfer: TransferConfig
 
 
 class ExitNode(BaseModel):
@@ -235,3 +246,106 @@ class PlaybackState(BaseModel):
 
 class RemoteResponse(BaseModel):
     playback_state: PlaybackState
+
+
+class TransferSettingsBody(BaseModel):
+    host: str = Field("", description="TrueNAS SSH host or IP.")
+    port: int = Field(22, description="TrueNAS SSH port.")
+    username: str = Field("", description="TrueNAS SSH username.")
+    auth_mode: str = Field("ssh_key", description="Authentication mode: `ssh_key` or `password`.")
+    password: str = Field("", description="SSH password when password auth is selected.")
+    private_key_path: str = Field("", description="Path to an SSH private key on the Raspberry Pi when key auth is selected.")
+
+
+class ImportMountBody(BaseModel):
+    device_path: str = Field(..., description="Block-device path for the removable SD card partition, for example `/dev/mmcblk0p1`.")
+
+
+class ImportUploadFolderBody(BaseModel):
+    device_path: str = Field(..., description="Mounted or mountable removable SD card device path.")
+    source_path: str = Field("", description="Folder path on the SD card, relative to the mounted card root.")
+    destination_path: str = Field("", description="Full destination path on TrueNAS where the import should be uploaded.")
+
+
+class ImportUploadFilesBody(BaseModel):
+    device_path: str = Field(..., description="Mounted or mountable removable SD card device path.")
+    source_path: str = Field("", description="Current source folder on the SD card, relative to the mounted card root.")
+    selected_files: list[str] = Field(default_factory=list, description="Selected photo file names from the current source folder.")
+    destination_path: str = Field("", description="Full destination path on TrueNAS where the selected photos should be uploaded.")
+
+
+class ImportDevice(BaseModel):
+    device_path: str = Field(..., description="Device path for the removable media partition.")
+    name: str = Field("", description="Kernel device name, such as `mmcblk0p1`.")
+    label: str = Field("", description="Human-readable device label or fallback name.")
+    size: str = Field("", description="Reported size string from the system.")
+    fstype: str = Field("", description="Filesystem type detected on the removable media.")
+    mounted: bool = Field(False, description="Whether the partition is currently mounted.")
+    mount_path: str = Field("", description="Current mount path if mounted.")
+
+
+class ImportEntry(BaseModel):
+    name: str = Field(..., description="File or directory name.")
+    relative_path: str = Field("", description="Path relative to the mounted SD card root.")
+    size_bytes: int = Field(0, description="Size in bytes for files, or 0 for directories.")
+
+
+class ImportBreadcrumb(BaseModel):
+    name: str = Field(..., description="Display label for this breadcrumb.")
+    path: str = Field("", description="Relative path used when navigating back to this breadcrumb.")
+
+
+class ImportBrowser(BaseModel):
+    ok: bool = Field(..., description="Whether browsing the currently selected SD card path succeeded.")
+    error: str = Field("", description="Error shown when the SD card is unavailable or the path is invalid.")
+    current_path: str = Field("", description="Current browsed folder relative to the mounted SD card root.")
+    directories: list[ImportEntry] = Field(default_factory=list, description="Child directories in the current folder.")
+    files: list[ImportEntry] = Field(default_factory=list, description="Photo files in the current folder.")
+    breadcrumbs: list[ImportBreadcrumb] = Field(default_factory=list, description="Breadcrumb navigation for the current folder.")
+
+
+class TransferSummary(BaseModel):
+    host: str = Field("", description="Configured TrueNAS SSH host.")
+    port: int = Field(22, description="Configured TrueNAS SSH port.")
+    username: str = Field("", description="Configured TrueNAS SSH username.")
+    auth_mode: str = Field("ssh_key", description="Configured SSH auth mode.")
+    private_key_path: str = Field("", description="Configured private key path when key auth is used.")
+    last_destination_path: str = Field("", description="Most recently used destination path on the Import page.")
+    configured: bool = Field(False, description="Whether enough connection data exists to run transfer jobs.")
+    has_password: bool = Field(False, description="Whether a password is currently stored for password-auth mode.")
+
+
+class ImportJob(BaseModel):
+    id: str = Field(..., description="Unique upload job identifier.")
+    kind: str = Field(..., description="Upload type: `folder` or `files`.")
+    device_path: str = Field(..., description="Removable SD card device path used by this job.")
+    source_path: str = Field("", description="Source folder on the SD card relative to the mounted root.")
+    source_name: str = Field("", description="Human-readable source folder name.")
+    selected_files: list[str] = Field(default_factory=list, description="Selected files for file-based jobs.")
+    destination_path: str = Field("", description="Destination path on TrueNAS.")
+    status: str = Field("", description="High-level job status such as queued, running, verifying, completed, failed, or cancelled.")
+    phase: str = Field("", description="Current task phase shown in the UI.")
+    total_files: int = Field(0, description="Total number of files in the job.")
+    total_bytes: int = Field(0, description="Total bytes to upload for the job.")
+    bytes_sent: int = Field(0, description="Bytes sent so far.")
+    speed_bps: int = Field(0, description="Current transfer speed in bytes per second.")
+    progress_percent: int = Field(0, description="Current progress percentage.")
+    retries: int = Field(0, description="How many retry attempts have been used so far.")
+    error: str = Field("", description="Latest error or waiting-state message for the job.")
+    last_output: str = Field("", description="Latest rsync or worker progress line.")
+    created_at: str = Field("", description="ISO timestamp when the job was created.")
+    updated_at: str = Field("", description="ISO timestamp when the job last changed.")
+    next_retry_at: str = Field("", description="ISO timestamp for the next retry attempt, if any.")
+    cancel_requested: bool = Field(False, description="Whether cancellation has been requested for the job.")
+
+
+class ImportResponse(BaseModel):
+    transfer: TransferSummary
+    devices: list[ImportDevice] = Field(default_factory=list, description="Detected removable SD card partitions.")
+    selected_device: str = Field("", description="Currently selected SD card device path in the Import screen.")
+    browser: ImportBrowser
+    jobs: list[ImportJob] = Field(default_factory=list, description="Current upload queue and recent job history.")
+
+
+class ImportJobsResponse(BaseModel):
+    jobs: list[ImportJob] = Field(default_factory=list, description="Current upload queue and recent job history.")

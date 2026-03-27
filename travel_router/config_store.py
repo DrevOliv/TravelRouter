@@ -23,6 +23,15 @@ DEFAULT_CONFIG = {
         "user_id": "",
         "device_name": "Pi Travel Router",
     },
+    "transfer": {
+        "host": "",
+        "port": 22,
+        "username": "",
+        "auth_mode": "ssh_key",
+        "password": "",
+        "private_key_path": "",
+        "last_destination_path": "",
+    },
     "auth": {
         "password_hash": "",
         "password_salt": "",
@@ -79,6 +88,49 @@ DEFAULT_CONFIG = {
                 {"id": 1, "lang": "eng", "title": "English", "selected": False},
                 {"id": 2, "lang": "swe", "title": "Swedish", "selected": False},
             ],
+        },
+        "imports": {
+            "devices": [
+                {
+                    "device_path": "/dev/mmcblk0p1",
+                    "label": "SanDisk SD Card",
+                    "size": "119G",
+                    "fstype": "exfat",
+                    "mounted": False,
+                    "mount_path": "",
+                }
+            ],
+            "tree": {
+                "": {
+                    "directories": ["DCIM", "Vacation"],
+                    "files": [],
+                },
+                "DCIM": {
+                    "directories": ["100APPLE"],
+                    "files": [],
+                },
+                "DCIM/100APPLE": {
+                    "directories": [],
+                    "files": [
+                        {"name": "IMG_1001.JPG", "size_bytes": 2480301},
+                        {"name": "IMG_1002.JPG", "size_bytes": 2619230},
+                        {"name": "IMG_1003.HEIC", "size_bytes": 3184022},
+                    ],
+                },
+                "Vacation": {
+                    "directories": ["Beach"],
+                    "files": [
+                        {"name": "Sunset.JPG", "size_bytes": 4321098},
+                    ],
+                },
+                "Vacation/Beach": {
+                    "directories": [],
+                    "files": [
+                        {"name": "Beach-01.JPG", "size_bytes": 3902101},
+                        {"name": "Beach-02.PNG", "size_bytes": 1712309},
+                    ],
+                },
+            },
         },
     },
 }

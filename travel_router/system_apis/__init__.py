@@ -1,5 +1,16 @@
 from .config import demo_state, load_settings, save_demo_state, update_demo, update_settings
 from .command import command_result, demo_command_result, extract_url, run_command
+from .imports import (
+    browse_import_source,
+    ensure_import_dirs,
+    import_job_manager,
+    import_mount_root,
+    list_import_devices,
+    mount_import_device,
+    transfer_destination_test,
+    transfer_settings_summary,
+    unmount_import_device,
+)
 from .jellyfin import jellyfin_image_url, jellyfin_items, jellyfin_system_info, jellyfin_views
 from .playback import (
     all_resume_seconds,
@@ -37,11 +48,17 @@ __all__ = [
     "disconnect_wifi",
     "extract_url",
     "get_playback_state",
+    "browse_import_source",
+    "ensure_import_dirs",
+    "import_job_manager",
+    "import_mount_root",
     "jellyfin_image_url",
     "jellyfin_items",
     "jellyfin_system_info",
     "jellyfin_views",
+    "list_import_devices",
     "load_settings",
+    "mount_import_device",
     "pause_playback",
     "play_jellyfin_item",
     "run_command",
@@ -57,6 +74,9 @@ __all__ = [
     "tailscale_login",
     "tailscale_status",
     "tailscale_up",
+    "transfer_destination_test",
+    "transfer_settings_summary",
+    "unmount_import_device",
     "update_demo",
     "update_settings",
     "wifi_qr_svg",

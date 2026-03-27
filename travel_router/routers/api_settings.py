@@ -10,6 +10,7 @@ from ..api_models import (
     JellyfinStatusResponse,
     SettingsResponse,
     TailscaleSettingsBody,
+    TransferSettingsBody,
     WifiSettingsBody,
 )
 from ..screen_data import action_payload, parse_exit_nodes, parse_tailscale_json, settings_payload
@@ -22,6 +23,7 @@ from ..system_apis import (
     tailscale_login,
     tailscale_status,
     tailscale_up,
+    transfer_destination_test,
     update_settings,
 )
 
@@ -219,3 +221,41 @@ async def api_jellyfin_settings(body: JellyfinSettingsBody):
         },
     )
     return {"ok": True, "action": "jellyfin_settings", "message": "Jellyfin settings saved", "detail": "", "link": "", "refresh": "settings"}
+
+
+@router.post(
+    "/settings/truenas-transfer",
+    response_model=ActionResponse,
+    tags=["settings"],
+    summary="Save TrueNAS transfer settings",
+    description="Stores the SSH and rsync connection settings used by the Import page for uploading photos to TrueNAS.",
+)
+async def api_transfer_settings(body: TransferSettingsBody):
+    auth_mode = body.auth_mode.strip() or "ssh_key"
+    if auth_mode not in {"ssh_key", "password"}:
+        return {"ok": False, "action": "transfer_settings", "message": "Invalid auth mode", "detail": "", "link": "", "refresh": None}
+
+    update_settings(
+        "transfer",
+        {
+            "host": body.host.strip(),
+            "port": int(body.port or 22),
+            "username": body.username.strip(),
+            "auth_mode": auth_mode,
+            "password": body.password,
+            "private_key_path": body.private_key_path.strip(),
+        },
+    )
+    return {"ok": True, "action": "transfer_settings", "message": "TrueNAS transfer settings saved", "detail": "", "link": "", "refresh": "settings"}
+
+
+@router.post(
+    "/settings/truenas-transfer/test",
+    response_model=ActionResponse,
+    tags=["settings"],
+    summary="Test TrueNAS transfer connection",
+    description="Checks that the configured SSH connection to the TrueNAS server is reachable and usable for rsync uploads.",
+)
+async def api_transfer_settings_test():
+    result = transfer_destination_test()
+    return action_payload("transfer_settings_test", result, "TrueNAS connection works", "TrueNAS connection failed", refresh="settings")

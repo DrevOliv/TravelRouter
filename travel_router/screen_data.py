@@ -3,15 +3,19 @@ import json
 from .system_apis import (
     all_resume_seconds,
     ap_connected_devices,
+    browse_import_source,
     current_wifi,
     get_playback_state,
+    import_job_manager,
     jellyfin_image_url,
     jellyfin_items,
     jellyfin_views,
+    list_import_devices,
     load_settings,
     scan_wifi,
     systemctl_status,
     tailscale_status,
+    transfer_settings_summary,
 )
 
 
@@ -197,3 +201,27 @@ def media_payload(search_term: str | None, parent_id: str | None) -> dict:
 
 def remote_payload() -> dict:
     return {"playback_state": get_playback_state()}
+
+
+def import_payload(device_path: str | None = None, source_path: str | None = None) -> dict:
+    devices = list_import_devices()
+    selected_device = (device_path or "").strip()
+    if not selected_device:
+        mounted = next((device for device in devices if device.get("mounted")), None)
+        selected_device = (mounted or (devices[0] if devices else {})).get("device_path", "")
+
+    browser = browse_import_source(selected_device, source_path or "") if selected_device else {
+        "ok": False,
+        "error": "Insert and mount an SD card to browse photos.",
+        "current_path": "",
+        "directories": [],
+        "files": [],
+        "breadcrumbs": [],
+    }
+    return {
+        "transfer": transfer_settings_summary(),
+        "devices": devices,
+        "selected_device": selected_device,
+        "browser": browser,
+        "jobs": import_job_manager.list_jobs(),
+    }

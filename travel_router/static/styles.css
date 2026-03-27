@@ -438,6 +438,12 @@ button.danger {
   gap: 0.8rem;
 }
 
+.inline-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
 .wifi-network-list {
   display: grid;
   gap: 0.7rem;
@@ -629,6 +635,121 @@ button.danger {
 .wifi-qr-block p {
   margin: 0;
   text-align: center;
+}
+
+.import-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.import-device-list,
+.import-entry-list,
+.import-job-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.import-device-item,
+.import-entry-item,
+.import-job-item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border-radius: 20px;
+  border: 1px solid rgba(17, 109, 110, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.import-device-item.is-active {
+  border-color: rgba(17, 109, 110, 0.26);
+  background: #f2fbf8;
+}
+
+.import-device-item p,
+.import-entry-link small,
+.import-job-head p,
+.import-job-item p {
+  margin: 0;
+}
+
+.import-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.import-browser-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.import-browser-column {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.import-browser-column h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.import-entry-item,
+.import-job-head,
+.import-job-meta,
+.import-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.import-entry-link {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.import-file-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.import-file-row {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(39, 57, 60, 0.1);
+  background: #fffdf9;
+}
+
+.import-file-row span {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.import-file-row input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+.import-target-summary {
+  margin-top: 0.3rem;
+}
+
+.import-job-path {
+  color: var(--muted);
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
+.import-job-meta {
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .ok {
@@ -1103,7 +1224,7 @@ button.danger {
     bottom: 0.55rem;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.45rem;
     padding: 0.48rem;
     border: 1px solid rgba(39, 57, 60, 0.12);
@@ -1174,6 +1295,24 @@ button.danger {
     column-count: auto;
     column-gap: 0;
     gap: 0.9rem;
+  }
+
+  .inline-fields,
+  .import-grid,
+  .import-browser-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .import-device-item,
+  .import-entry-item,
+  .import-job-head,
+  .import-job-meta,
+  .import-file-row {
+    align-items: start;
+  }
+
+  .import-file-row span {
+    width: 100%;
   }
 
   .settings-grid > .card {

@@ -1,5 +1,6 @@
 const SCREEN_TITLES = {
   home: "Home",
+  import: "Import",
   media: "Media",
   remote: "Remote",
   settings: "Settings",
@@ -7,10 +8,12 @@ const SCREEN_TITLES = {
 
 let mediaSearchTimer = null;
 let homeWifiPollTimer = null;
+let importJobsPollTimer = null;
 let screenLoadController = null;
 
 function redirectToLogin() {
   stopHomeWifiPolling();
+  stopImportJobsPolling();
   window.location.href = "/login";
 }
 
@@ -27,21 +30,61 @@ function escapeAttr(value) {
   return escapeHtml(value);
 }
 
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = unitIndex === 0 ? 0 : (size >= 10 ? 1 : 2);
+  return `${size.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
+function formatSpeed(speedBps) {
+  const value = Number(speedBps || 0);
+  if (!Number.isFinite(value) || value <= 0) return "0 B/s";
+  return `${formatBytes(value)}/s`;
+}
+
+function formatPathLabel(value) {
+  return value ? escapeHtml(value) : "Not set";
+}
+
 function formToJson(form) {
   const data = {};
   const formData = new FormData(form);
   for (const [key, value] of formData.entries()) {
-    data[key] = value;
+    if (Object.hasOwn(data, key)) {
+      if (Array.isArray(data[key])) {
+        data[key].push(value);
+      } else {
+        data[key] = [data[key], value];
+      }
+    } else {
+      data[key] = value;
+    }
   }
 
-  form.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+  form.querySelectorAll('input[type="checkbox"][data-boolean-field]').forEach((input) => {
     data[input.name] = input.checked;
+  });
+
+  form.querySelectorAll('input[type="checkbox"][data-array-field]').forEach((input) => {
+    if (!input.name) return;
+    const values = Array.from(form.querySelectorAll(`input[type="checkbox"][data-array-field][name="${CSS.escape(input.name)}"]:checked`))
+      .map((element) => element.value);
+    data[input.name] = values;
   });
 
   return data;
 }
 
 function getScreenFromPath(pathname) {
+  if (pathname === "/import") return "import";
   if (pathname === "/settings") return "settings";
   if (pathname === "/media") return "media";
   if (pathname === "/remote") return "remote";
@@ -50,6 +93,7 @@ function getScreenFromPath(pathname) {
 
 function getApiUrl(screen) {
   const url = new URL(window.location.href);
+  if (screen === "import") return `/api/import${url.search}`;
   if (screen === "settings") return "/api/settings";
   if (screen === "media") return `/api/media${url.search}`;
   if (screen === "remote") return "/api/remote";
@@ -405,7 +449,7 @@ function renderHomeExitNodeContent(data) {
       <form action="/api/settings/tailscale/toggle" method="post" class="stack exit-node-toggle-form" data-api-form data-refresh-target="home-exit-node" data-refresh-on-error="true">
         <label class="switch-row switch-control">
           <span>Use exit node</span>
-          <input type="checkbox" name="enabled" ${exitNodeActive ? "checked" : ""} data-exit-node-toggle ${selectedExitNode ? "" : "disabled"}>
+          <input type="checkbox" name="enabled" ${exitNodeActive ? "checked" : ""} data-exit-node-toggle data-boolean-field ${selectedExitNode ? "" : "disabled"}>
           <span class="switch-slider" aria-hidden="true"></span>
         </label>
       </form>
@@ -427,6 +471,7 @@ function renderHomeExitNodeContent(data) {
 function renderSettings(data) {
   const settings = data.settings || {};
   const jellyfin = data.jellyfin || {};
+  const transfer = settings.transfer || {};
 
   return `
     <section class="card hero page-hero">
@@ -437,6 +482,10 @@ function renderSettings(data) {
         <div class="mini-stat">
           <span class="mini-stat-label">Jellyfin</span>
           <strong data-jellyfin-hero-name>${escapeHtml(jellyfin.configured ? "Checking..." : "Not set")}</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="mini-stat-label">TrueNAS</span>
+          <strong>${escapeHtml(transfer.host || "Not set")}</strong>
         </div>
       </div>
     </section>
@@ -497,6 +546,51 @@ function renderSettings(data) {
       <article class="card">
         <div class="section-head">
           <div>
+            <p class="eyebrow">TrueNAS import</p>
+            <h3>Transfer connection</h3>
+          </div>
+          <span class="status-chip">${escapeHtml(transfer.host ? "Configured" : "Not set")}</span>
+        </div>
+        <form action="/api/settings/truenas-transfer" method="post" class="stack" data-api-form data-refresh="settings">
+          <label>
+            Host
+            <input type="text" name="host" value="${escapeAttr(transfer.host || "")}" placeholder="truenas.local">
+          </label>
+          <div class="inline-fields">
+            <label>
+              Port
+              <input type="number" name="port" value="${escapeAttr(transfer.port || 22)}" min="1" max="65535">
+            </label>
+            <label>
+              Username
+              <input type="text" name="username" value="${escapeAttr(transfer.username || "")}" placeholder="backup">
+            </label>
+          </div>
+          <label>
+            Auth mode
+            <select name="auth_mode" data-transfer-auth-mode>
+              <option value="ssh_key" ${transfer.auth_mode === "ssh_key" || !transfer.auth_mode ? "selected" : ""}>SSH key</option>
+              <option value="password" ${transfer.auth_mode === "password" ? "selected" : ""}>Password</option>
+            </select>
+          </label>
+          <label data-transfer-key-wrap>
+            Private key path on Pi
+            <input type="text" name="private_key_path" value="${escapeAttr(transfer.private_key_path || "")}" placeholder="/var/lib/pi-travel-router/.ssh/id_ed25519">
+          </label>
+          <label data-transfer-password-wrap>
+            Password
+            <input type="password" name="password" value="${escapeAttr(transfer.password || "")}">
+          </label>
+          <button type="submit" data-action="transfer_settings">Save transfer settings</button>
+        </form>
+        <form action="/api/settings/truenas-transfer/test" method="post" class="stack" data-api-form>
+          <button type="submit" data-action="transfer_settings_test" class="secondary">Test connection</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <div class="section-head">
+          <div>
             <p class="eyebrow">Security</p>
             <h3>Admin password</h3>
           </div>
@@ -548,6 +642,274 @@ function renderSettings(data) {
           </label>
           <button type="submit" data-action="jellyfin_settings">Save Jellyfin settings</button>
         </form>
+      </article>
+    </section>
+  `;
+}
+
+function renderImportJobs(jobs) {
+  if (!jobs.length) {
+    return `<p class="muted">No uploads yet.</p>`;
+  }
+
+  return `
+    <div class="import-job-list">
+      ${jobs
+        .map((job) => {
+          const progress = Math.max(0, Math.min(100, Number(job.progress_percent || 0)));
+          const statusLabel = job.phase || job.status || "queued";
+          const retryLabel = job.next_retry_at ? `Retry scheduled` : "";
+          const canRetry = ["failed", "cancelled", "waiting_retry", "waiting_source"].includes(job.status);
+          const canCancel = ["queued", "running", "verifying", "waiting_retry", "waiting_source"].includes(job.status);
+          return `
+            <article class="import-job-item">
+              <div class="import-job-head">
+                <div>
+                  <strong>${escapeHtml(job.source_name || "Import job")}</strong>
+                  <p class="muted">${escapeHtml(job.kind === "folder" ? "Folder upload" : `${job.selected_files?.length || 0} selected photos`)}</p>
+                </div>
+                <span class="status-chip">${escapeHtml(statusLabel)}</span>
+              </div>
+              <p class="import-job-path">${escapeHtml(job.destination_path || "")}</p>
+              <div class="remote-progress">
+                <div class="remote-progress-bar">
+                  <span style="width: ${progress}%"></span>
+                </div>
+                <div class="remote-progress-copy">
+                  <span>${formatBytes(job.bytes_sent || 0)} / ${formatBytes(job.total_bytes || 0)}</span>
+                  <span>${progress}%</span>
+                </div>
+              </div>
+              <div class="import-job-meta">
+                <span>${escapeHtml(`${job.total_files || 0} files`)}</span>
+                <span>${escapeHtml(formatSpeed(job.speed_bps || 0))}</span>
+              </div>
+              ${job.error ? `<p class="muted">${escapeHtml(job.error)}</p>` : ""}
+              ${retryLabel ? `<p class="muted">${escapeHtml(retryLabel)}</p>` : ""}
+              ${job.last_output ? `<p class="muted">${escapeHtml(job.last_output)}</p>` : ""}
+              <div class="button-row">
+                ${canRetry ? `
+                  <form action="/api/import/jobs/${encodeURIComponent(job.id)}/retry" method="post" data-api-form data-refresh-target="import-jobs">
+                    <button type="submit" class="secondary">Retry</button>
+                  </form>
+                ` : ""}
+                ${canCancel ? `
+                  <form action="/api/import/jobs/${encodeURIComponent(job.id)}/cancel" method="post" data-api-form data-refresh-target="import-jobs">
+                    <button type="submit" class="secondary">Cancel</button>
+                  </form>
+                ` : ""}
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderImport(data) {
+  const transfer = data.transfer || {};
+  const devices = data.devices || [];
+  const browser = data.browser || { directories: [], files: [], breadcrumbs: [] };
+  const selectedDevice = data.selected_device || "";
+  const selectedDeviceInfo = devices.find((device) => device.device_path === selectedDevice) || null;
+  const directories = browser.directories || [];
+  const files = browser.files || [];
+  const currentPath = browser.current_path || "";
+  const currentFolderName = currentPath.split("/").filter(Boolean).pop() || "SD card";
+  const destinationValue = transfer.last_destination_path || "";
+
+  return `
+    <section class="card hero page-hero">
+      <div class="hero-copy">
+        <h2>Import Photos</h2>
+        <p class="muted">Mount an SD card, browse photos, choose a destination path, and queue resumable uploads to TrueNAS.</p>
+      </div>
+      <div class="hero-side">
+        <div class="mini-stat">
+          <span class="mini-stat-label">Target host</span>
+          <strong>${escapeHtml(transfer.host || "Not set")}</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="mini-stat-label">Destination path</span>
+          <strong>${escapeHtml(transfer.last_destination_path || "Choose on this page")}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid import-grid">
+      <article class="card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">SD card</p>
+            <h3>Removable storage</h3>
+          </div>
+        </div>
+        ${
+          devices.length
+            ? `
+              <div class="import-device-list">
+                ${devices
+                  .map(
+                    (device) => `
+                      <div class="import-device-item ${device.device_path === selectedDevice ? "is-active" : ""}">
+                        <div>
+                          <strong>${escapeHtml(device.label || device.name || device.device_path)}</strong>
+                          <p class="muted">${escapeHtml(device.size || "")}${device.fstype ? ` · ${escapeHtml(device.fstype)}` : ""}</p>
+                        </div>
+                        <div class="button-row">
+                          ${
+                            device.mounted
+                              ? `
+                                <a href="/import?device=${encodeURIComponent(device.device_path)}" data-nav-link class="button secondary">Browse</a>
+                                <form action="/api/import/unmount" method="post" data-api-form data-refresh="import">
+                                  <input type="hidden" name="device_path" value="${escapeAttr(device.device_path)}">
+                                  <button type="submit" class="secondary">Unmount</button>
+                                </form>
+                              `
+                              : `
+                                <form action="/api/import/mount" method="post" data-api-form data-refresh="import">
+                                  <input type="hidden" name="device_path" value="${escapeAttr(device.device_path)}">
+                                  <button type="submit">Mount</button>
+                                </form>
+                              `
+                          }
+                        </div>
+                      </div>
+                    `
+                  )
+                  .join("")}
+              </div>
+            `
+            : `<p class="muted">No removable SD card detected.</p>`
+        }
+      </article>
+
+      <article class="card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Destination</p>
+            <h3>TrueNAS path</h3>
+          </div>
+          <span class="status-chip">${escapeHtml(transfer.configured ? "Ready" : "Setup needed")}</span>
+        </div>
+        <label>
+          Destination path on TrueNAS
+          <input type="text" value="${escapeAttr(destinationValue)}" placeholder="/mnt/tank/photos/imports/trip" data-import-destination-input>
+        </label>
+        <p class="muted">This path is chosen on the Import page and reused as the default next time.</p>
+        <ul class="status-list compact-list import-target-summary">
+          <li><span>Host</span><strong>${escapeHtml(transfer.host || "Not set")}</strong></li>
+          <li><span>User</span><strong>${escapeHtml(transfer.username || "Not set")}</strong></li>
+          <li><span>Auth</span><strong>${escapeHtml(transfer.auth_mode === "password" ? "Password" : "SSH key")}</strong></li>
+        </ul>
+      </article>
+
+      <article class="card card-wide">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Source browser</p>
+            <h3>${escapeHtml(selectedDeviceInfo ? selectedDeviceInfo.label || currentFolderName : "Browse SD card")}</h3>
+          </div>
+          <span class="status-chip">${escapeHtml(browser.ok ? currentFolderName : "Waiting")}</span>
+        </div>
+        ${
+          browser.ok
+            ? `
+              <div class="import-breadcrumbs">
+                ${browser.breadcrumbs
+                  .map(
+                    (crumb) => `
+                      <a href="/import?device=${encodeURIComponent(selectedDevice)}${crumb.path ? `&source=${encodeURIComponent(crumb.path)}` : ""}" data-nav-link class="pill-link">${escapeHtml(crumb.name)}</a>
+                    `
+                  )
+                  .join("")}
+              </div>
+
+              <form action="/api/import/upload-folder" method="post" class="stack import-upload-form" data-api-form data-refresh="import">
+                <input type="hidden" name="device_path" value="${escapeAttr(selectedDevice)}">
+                <input type="hidden" name="source_path" value="${escapeAttr(currentPath)}">
+                <input type="hidden" name="destination_path" value="${escapeAttr(destinationValue)}" data-import-destination-field>
+                <button type="submit" data-import-current-folder-button ${destinationValue && currentPath ? "" : "disabled"}>Upload current folder</button>
+              </form>
+
+              <div class="import-browser-grid">
+                <div class="import-browser-column">
+                  <h4>Folders</h4>
+                  ${
+                    directories.length
+                      ? `
+                        <div class="import-entry-list">
+                          ${directories
+                            .map(
+                              (entry) => `
+                                <div class="import-entry-item">
+                                  <a href="/import?device=${encodeURIComponent(selectedDevice)}&source=${encodeURIComponent(entry.relative_path)}" data-nav-link class="import-entry-link">
+                                    <strong>${escapeHtml(entry.name)}</strong>
+                                    <small>Open folder</small>
+                                  </a>
+                                  <form action="/api/import/upload-folder" method="post" data-api-form data-refresh="import">
+                                    <input type="hidden" name="device_path" value="${escapeAttr(selectedDevice)}">
+                                    <input type="hidden" name="source_path" value="${escapeAttr(entry.relative_path)}">
+                                    <input type="hidden" name="destination_path" value="${escapeAttr(destinationValue)}" data-import-destination-field>
+                                    <button type="submit" class="secondary" ${destinationValue ? "" : "disabled"}>Upload folder</button>
+                                  </form>
+                                </div>
+                              `
+                            )
+                            .join("")}
+                        </div>
+                      `
+                      : `<p class="muted">No subfolders here.</p>`
+                  }
+                </div>
+
+                <div class="import-browser-column">
+                  <h4>Photos</h4>
+                  ${
+                    files.length
+                      ? `
+                        <form action="/api/import/upload-files" method="post" class="stack import-file-form" data-api-form data-refresh="import">
+                          <input type="hidden" name="device_path" value="${escapeAttr(selectedDevice)}">
+                          <input type="hidden" name="source_path" value="${escapeAttr(currentPath)}">
+                          <input type="hidden" name="destination_path" value="${escapeAttr(destinationValue)}" data-import-destination-field>
+                          <div class="import-file-list">
+                            ${files
+                              .map(
+                                (entry) => `
+                                  <label class="import-file-row">
+                                    <span>
+                                      <input type="checkbox" name="selected_files" value="${escapeAttr(entry.name)}" data-import-file-checkbox data-array-field>
+                                      <strong>${escapeHtml(entry.name)}</strong>
+                                    </span>
+                                    <small>${escapeHtml(formatBytes(entry.size_bytes))}</small>
+                                  </label>
+                                `
+                              )
+                              .join("")}
+                          </div>
+                          <button type="submit" data-import-files-submit ${destinationValue ? "" : "disabled"}>Upload selected photos</button>
+                        </form>
+                      `
+                      : `<p class="muted">No photos found in this folder.</p>`
+                  }
+                </div>
+              </div>
+            `
+            : `<p class="muted">${escapeHtml(browser.error || "Mount an SD card to start browsing.")}</p>`
+        }
+      </article>
+
+      <article class="card card-wide">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Queue</p>
+            <h3>Uploads</h3>
+          </div>
+        </div>
+        <div data-import-jobs>
+          ${renderImportJobs(data.jobs || [])}
+        </div>
       </article>
     </section>
   `;
@@ -787,8 +1149,15 @@ function renderScreen(screen, payload) {
   const root = document.querySelector("#app-root");
   if (!root) return;
 
+  if (screen === "import") {
+    root.innerHTML = renderImport(payload);
+    syncImportDestination(document);
+    syncTransferAuthMode(document);
+    return;
+  }
   if (screen === "settings") {
     root.innerHTML = renderSettings(payload);
+    syncTransferAuthMode(root);
     hydrateJellyfinStatus();
     return;
   }
@@ -836,6 +1205,23 @@ async function refreshRemoteState() {
   renderScreen("remote", payload);
 }
 
+async function refreshImportJobs() {
+  if (getScreenFromPath(window.location.pathname) !== "import") return;
+  const jobsContainer = document.querySelector("[data-import-jobs]");
+  if (!(jobsContainer instanceof HTMLElement)) return;
+
+  try {
+    const response = await fetchJson("/api/import/jobs", {
+      headers: { Accept: "application/json" },
+    });
+    if (!response) return;
+    const payload = await response.json();
+    jobsContainer.innerHTML = renderImportJobs(payload.jobs || []);
+  } catch (_error) {
+    // Leave the current queue view in place on transient polling failures.
+  }
+}
+
 async function handleActionRefresh(form, payload) {
   const refreshTarget = form.dataset.refreshTarget || "";
   if (refreshTarget === "home-wifi") {
@@ -848,6 +1234,10 @@ async function handleActionRefresh(form, payload) {
   }
   if (refreshTarget === "remote-state") {
     await refreshRemoteState();
+    return true;
+  }
+  if (refreshTarget === "import-jobs") {
+    await refreshImportJobs();
     return true;
   }
 
@@ -875,6 +1265,13 @@ function stopHomeWifiPolling() {
   if (homeWifiPollTimer !== null) {
     window.clearInterval(homeWifiPollTimer);
     homeWifiPollTimer = null;
+  }
+}
+
+function stopImportJobsPolling() {
+  if (importJobsPollTimer !== null) {
+    window.clearInterval(importJobsPollTimer);
+    importJobsPollTimer = null;
   }
 }
 
@@ -925,6 +1322,14 @@ function startHomeWifiPolling() {
   }, 5000);
 }
 
+function startImportJobsPolling() {
+  stopImportJobsPolling();
+  if (getScreenFromPath(window.location.pathname) !== "import") return;
+  importJobsPollTimer = window.setInterval(() => {
+    refreshImportJobs();
+  }, 1500);
+}
+
 async function loadCurrentScreen(options = {}) {
   const { silent = true } = options;
   const screen = getScreenFromPath(window.location.pathname);
@@ -955,9 +1360,15 @@ async function loadCurrentScreen(options = {}) {
     } else {
       stopHomeWifiPolling();
     }
+    if (screen === "import") {
+      startImportJobsPolling();
+    } else {
+      stopImportJobsPolling();
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return;
     stopHomeWifiPolling();
+    stopImportJobsPolling();
     renderError(String(error));
   } finally {
     setRootBusy(false);
@@ -982,6 +1393,72 @@ function triggerLiveMediaSearch(form) {
   if (nextUrl === currentUrl) return;
   window.history.replaceState({}, "", nextUrl);
   loadCurrentScreen({ silent: true });
+}
+
+function syncTransferAuthMode(scope = document) {
+  const select = scope.querySelector("[data-transfer-auth-mode]");
+  if (!(select instanceof HTMLSelectElement)) return;
+
+  const value = select.value;
+  scope.querySelectorAll("[data-transfer-password-wrap]").forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.hidden = value !== "password";
+    }
+    const input = element.querySelector("input");
+    if (input instanceof HTMLInputElement) {
+      input.required = value === "password";
+    }
+  });
+  scope.querySelectorAll("[data-transfer-key-wrap]").forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.hidden = value !== "ssh_key";
+    }
+    const input = element.querySelector("input");
+    if (input instanceof HTMLInputElement) {
+      input.required = value === "ssh_key";
+    }
+  });
+}
+
+function syncImportDestination(scope = document) {
+  const input = scope.querySelector("[data-import-destination-input]");
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const apply = () => {
+    const value = input.value.trim();
+    scope.querySelectorAll("[data-import-destination-field]").forEach((field) => {
+      if (field instanceof HTMLInputElement) {
+        field.value = value;
+      }
+    });
+    scope.querySelectorAll("[data-import-files-submit], .import-browser-grid form button[type='submit'], .import-upload-form button[type='submit']").forEach((button) => {
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = !value;
+      }
+    });
+    scope.querySelectorAll("[data-import-current-folder-button]").forEach((button) => {
+      if (button instanceof HTMLButtonElement) {
+        const sourceField = button.form?.querySelector('input[name="source_path"]');
+        const hasFolder = sourceField instanceof HTMLInputElement && Boolean(sourceField.value.trim());
+        button.disabled = !value || !hasFolder;
+      }
+    });
+    syncImportFileSelection(scope);
+  };
+
+  apply();
+}
+
+function syncImportFileSelection(scope = document) {
+  const form = scope.querySelector(".import-file-form");
+  if (!(form instanceof HTMLFormElement)) return;
+  const submit = form.querySelector("[data-import-files-submit]");
+  const destination = scope.querySelector("[data-import-destination-input]");
+  const checked = form.querySelectorAll("[data-import-file-checkbox]:checked").length;
+  if (submit instanceof HTMLButtonElement) {
+    submit.disabled = checked === 0 || !(destination instanceof HTMLInputElement && destination.value.trim());
+    submit.textContent = checked > 0 ? `Upload ${checked} selected photo${checked === 1 ? "" : "s"}` : "Upload selected photos";
+  }
 }
 
 async function hydrateJellyfinStatus() {
@@ -1140,6 +1617,10 @@ function handleClick(event) {
 function handleInput(event) {
   const input = event.target;
   if (!(input instanceof HTMLInputElement)) return;
+  if (input.matches("[data-import-destination-input]")) {
+    syncImportDestination(document);
+    return;
+  }
   const form = input.closest('form[data-live-search="media"]');
   if (!(form instanceof HTMLFormElement)) return;
   if (input.name !== "q") return;
@@ -1151,13 +1632,22 @@ function handleInput(event) {
 }
 
 function handleChange(event) {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) return;
-  if (!input.matches("[data-exit-node-toggle]")) return;
+  const target = event.target;
+  if (target instanceof HTMLInputElement && target.matches("[data-exit-node-toggle]")) {
+    const form = target.closest("form[data-api-form]");
+    if (!(form instanceof HTMLFormElement)) return;
+    submitApiForm(form, null);
+    return;
+  }
 
-  const form = input.closest("form[data-api-form]");
-  if (!(form instanceof HTMLFormElement)) return;
-  submitApiForm(form, null);
+  if (target instanceof HTMLSelectElement && target.matches("[data-transfer-auth-mode]")) {
+    syncTransferAuthMode(document);
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.matches("[data-import-file-checkbox]")) {
+    syncImportFileSelection(document);
+  }
 }
 
 function handleSubmit(event) {
@@ -1196,5 +1686,6 @@ window.addEventListener("resize", () => {
   requestAnimationFrame(relayoutAllPackedGrids);
 });
 window.addEventListener("beforeunload", stopHomeWifiPolling);
+window.addEventListener("beforeunload", stopImportJobsPolling);
 document.addEventListener("DOMContentLoaded", loadMeta);
 document.addEventListener("DOMContentLoaded", loadCurrentScreen);

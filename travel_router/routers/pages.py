@@ -61,6 +61,13 @@ async def remote_page(request: Request):
     return shell_response()
 
 
+@router.get("/import")
+async def import_page(request: Request):
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=303)
+    return shell_response()
+
+
 @router.get("/login")
 async def login_page(request: Request):
     if is_authenticated(request):
