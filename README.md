@@ -203,8 +203,7 @@ DEMO_MODE=1
 In demo mode:
 
 - Wi-Fi scanning and connecting are mocked
-- Tailscale status, login, and exit node changes are mocked
-- service status is mocked
+- Tailscale exit node data and changes are mocked
 - playback controls are mocked
 - Jellyfin browsing stays real, so you can still browse your actual library
 

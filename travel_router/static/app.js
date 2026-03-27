@@ -134,7 +134,35 @@ function renderError(message) {
   `;
 }
 
-function relayoutAllPackedGrids() {}
+function relayoutPackedGrid(selector) {
+  const grid = document.querySelector(selector);
+  if (!(grid instanceof HTMLElement)) return;
+
+  const computed = window.getComputedStyle(grid);
+  const columnCount = computed.gridTemplateColumns.split(" ").filter(Boolean).length;
+  if (columnCount <= 1) {
+    grid.querySelectorAll(":scope > .card").forEach((card) => {
+      if (card instanceof HTMLElement) {
+        card.style.gridRowEnd = "";
+      }
+    });
+    return;
+  }
+
+  const rowHeight = Number.parseFloat(computed.getPropertyValue("grid-auto-rows")) || 1;
+  const rowGap = Number.parseFloat(computed.getPropertyValue("row-gap")) || 0;
+
+  grid.querySelectorAll(":scope > .card").forEach((card) => {
+    if (!(card instanceof HTMLElement)) return;
+    card.style.gridRowEnd = "auto";
+    const span = Math.ceil((card.getBoundingClientRect().height + rowGap) / (rowHeight + rowGap));
+    card.style.gridRowEnd = `span ${Math.max(span, 1)}`;
+  });
+}
+
+function relayoutAllPackedGrids() {
+  relayoutPackedGrid(".dashboard-grid");
+}
 
 function renderCurrentNetworkContent(wifiCurrent) {
   if (wifiCurrent.connected) {
@@ -351,7 +379,6 @@ function closeWifiModal({ restoreFocus = true, clearPassword = true } = {}) {
 function renderHome(data) {
   const wifiCurrent = data.wifi_current || {};
   const connectedDevices = data.connected_devices || [];
-  const services = data.services || {};
   const settings = data.settings || { wifi: {} };
   const wifiNetworks = data.wifi_networks || [];
   const exitNodes = data.exit_nodes || [];
@@ -366,14 +393,6 @@ function renderHome(data) {
   ].join("");
   const scanMessage = data.wifi_scan?.stdout || data.wifi_scan?.stderr || "No scan data yet.";
   const currentNetworkHtml = renderCurrentNetworkContent(wifiCurrent);
-
-  const servicesHtml = Object.entries(services)
-    .map(([name, result]) => {
-      const state = result?.stdout || result?.stderr || "unknown";
-      const stateClass = result?.ok && result?.stdout === "active" ? "ok" : "warn";
-      return `<li><span>${escapeHtml(name)}</span><strong class="${stateClass}">${escapeHtml(state)}</strong></li>`;
-    })
-    .join("");
 
   const wifiNetworksHtml = renderWifiNetworksContent(wifiNetworks, scanMessage);
 
@@ -444,11 +463,6 @@ function renderHome(data) {
           selectedExitNode,
           exitNodeActive,
         })}
-      </article>
-
-      <article class="card">
-        <h3>Service status</h3>
-        <ul class="status-list">${servicesHtml}</ul>
       </article>
     </section>
 

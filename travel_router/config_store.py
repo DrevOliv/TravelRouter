@@ -50,21 +50,14 @@ DEFAULT_CONFIG = {
             {"name": "MacBook Air", "ip": "192.168.50.10", "mac": "8C:85:90:44:55:66", "state": "reachable"},
         ],
         "tailscale": {
-            "logged_in": False,
             "backend_state": "NeedsLogin",
             "host_name": "pi-travel-router-demo",
             "current_exit_node": "",
-            "auth_url": "https://login.tailscale.com/demo",
             "exit_nodes": [
                 {"value": "100.90.10.11", "label": "Stockholm Exit", "dns_name": "stockholm-exit.demo.ts.net", "online": True},
                 {"value": "100.90.10.12", "label": "London Exit", "dns_name": "london-exit.demo.ts.net", "online": True},
                 {"value": "100.90.10.13", "label": "New York Exit", "dns_name": "newyork-exit.demo.ts.net", "online": False},
             ],
-        },
-        "services": {
-            "hostapd": "active",
-            "dnsmasq": "active",
-            "tailscaled": "active",
         },
         "playback": {
             "active_item_id": "",

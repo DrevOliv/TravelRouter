@@ -11,8 +11,7 @@ from .playback import (
     set_subtitle_track,
     stop_playback,
 )
-from .services import systemctl_status
-from .tailscale import tailscale_disable_exit_node, tailscale_down, tailscale_login, tailscale_status, tailscale_up
+from .tailscale import tailscale_disable_exit_node, tailscale_status, tailscale_up
 from .wifi import (
     ap_connected_devices,
     apply_ap_password,
@@ -51,10 +50,7 @@ __all__ = [
     "set_audio_track",
     "set_subtitle_track",
     "stop_playback",
-    "systemctl_status",
     "tailscale_disable_exit_node",
-    "tailscale_down",
-    "tailscale_login",
     "tailscale_status",
     "tailscale_up",
     "update_demo",
