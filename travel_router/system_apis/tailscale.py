@@ -28,6 +28,10 @@ def tailscale_status() -> dict:
             },
         }
         return demo_command_result("demo tailscale status", stdout=json.dumps(payload))
+    
+    
+    
+    
     return run_command(["tailscale", "status", "--json"])
 
 
@@ -44,6 +48,8 @@ def tailscale_up(exit_node: str | None = None) -> dict:
         )
         stdout = f"Connected to exit node {exit_node}" if exit_node else "Tailscale is running"
         return demo_command_result("demo tailscale up", stdout=stdout)
+    
+    
     command = ["sudo", "tailscale", "up"]
     if exit_node:
         command.extend(["--exit-node", exit_node])
@@ -59,6 +65,8 @@ def tailscale_login() -> dict:
             stdout="Open the login URL to authenticate.",
             auth_url=state["auth_url"],
         )
+    
+    
     return run_command(["sudo", "tailscale", "up"])
 
 
@@ -66,6 +74,8 @@ def tailscale_down() -> dict:
     if is_demo_mode():
         update_demo("tailscale", {"logged_in": False, "backend_state": "Stopped", "current_exit_node": ""})
         return demo_command_result("demo tailscale down", stdout="Tailscale stopped")
+    
+    
     return run_command(["sudo", "tailscale", "down"])
 
 
@@ -73,4 +83,7 @@ def tailscale_disable_exit_node() -> dict:
     if is_demo_mode():
         update_demo("tailscale", {"backend_state": "Running"})
         return demo_command_result("demo tailscale disable exit node", stdout="Exit node disabled")
+    
+    
+    
     return run_command(["sudo", "tailscale", "set", "--exit-node="])

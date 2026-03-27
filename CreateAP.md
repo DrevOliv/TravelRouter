@@ -14,7 +14,7 @@ We will create a new connection profile specifically for the hotspot. Replace `M
 ```bash
 sudo nmcli con add type wifi ifname wlan0 mode ap con-name MyHotspot ssid RouterPi
 sudo nmcli con modify MyHotspot 802-11-wireless.band bg
-sudo nmcli con modify MyHotspot 802-11-wireless-security.key-mgmt wpa-psk
+sudo nmcli con modify MyHotspot 802-11-wireless-security.proto rsn 802-11-wireless-security.pairwise ccmp 802-11-wireless-security.group ccmp
 sudo nmcli con modify MyHotspot 802-11-wireless-security.psk Password123
 sudo nmcli con modify MyHotspot ipv4.method shared
 ```
@@ -45,6 +45,16 @@ By default, NetworkManager might try to use `wlan0` to scan for other networks. 
     ```bash
     sudo iw reg set US
     ```
+5.  **To check the logs:**
+    ```bash
+    journalctl -u NetworkManager -f
+    ```
+
+6.  **To check where the internet trafic is going:**
+    ```bash
+    ip route
+    ```
+
 ---
 
 ### Step 3: Bring the AP Online
