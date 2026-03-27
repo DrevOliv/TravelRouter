@@ -7,7 +7,15 @@ const SCREEN_TITLES = {
 
 let mediaSearchTimer = null;
 let homeWifiPollTimer = null;
+let homeWifiRefreshPromise = null;
 let screenLoadController = null;
+const wifiModalState = {
+  isOpen: false,
+  ssid: "",
+  security: "",
+  isOpenNetwork: false,
+  password: "",
+};
 
 function redirectToLogin() {
   stopHomeWifiPolling();
@@ -117,6 +125,7 @@ function setRootBusy(isBusy) {
 function renderError(message) {
   const root = document.querySelector("#app-root");
   if (!root) return;
+  closeWifiModal({ restoreFocus: false });
   root.innerHTML = `
     <section class="card empty-state">
       <h3>Could not load this page</h3>
@@ -125,35 +134,7 @@ function renderError(message) {
   `;
 }
 
-function relayoutPackedGrid(selector) {
-  const grid = document.querySelector(selector);
-  if (!(grid instanceof HTMLElement)) return;
-
-  const computed = window.getComputedStyle(grid);
-  const columnCount = computed.gridTemplateColumns.split(" ").filter(Boolean).length;
-  if (columnCount <= 1) {
-    grid.querySelectorAll(":scope > .card").forEach((card) => {
-      if (card instanceof HTMLElement) {
-        card.style.gridRowEnd = "";
-      }
-    });
-    return;
-  }
-
-  const rowHeight = Number.parseFloat(computed.getPropertyValue("grid-auto-rows")) || 1;
-  const rowGap = Number.parseFloat(computed.getPropertyValue("row-gap")) || 0;
-
-  grid.querySelectorAll(":scope > .card").forEach((card) => {
-    if (!(card instanceof HTMLElement)) return;
-    card.style.gridRowEnd = "auto";
-    const span = Math.ceil((card.getBoundingClientRect().height + rowGap) / (rowHeight + rowGap));
-    card.style.gridRowEnd = `span ${Math.max(span, 1)}`;
-  });
-}
-
-function relayoutAllPackedGrids() {
-  relayoutPackedGrid(".dashboard-grid");
-}
+function relayoutAllPackedGrids() {}
 
 function renderCurrentNetworkContent(wifiCurrent) {
   if (wifiCurrent.connected) {
@@ -187,6 +168,7 @@ function renderWifiNetworksContent(wifiNetworks, scanMessage) {
               class="wifi-network-row"
               data-wifi-select
               data-ssid="${escapeAttr(network.ssid)}"
+              data-security="${escapeAttr(network.security)}"
               data-open="${network.is_open ? "true" : "false"}"
             >
               <span class="wifi-network-main">
@@ -195,15 +177,6 @@ function renderWifiNetworksContent(wifiNetworks, scanMessage) {
               </span>
               <span class="wifi-network-signal">${escapeHtml(network.signal)}%</span>
             </button>
-            <form action="/api/wifi/connect" method="post" class="stack wifi-connect-inline wifi-inline-panel" data-api-form data-refresh-target="home-wifi" data-wifi-form data-ssid="${escapeAttr(network.ssid)}" hidden>
-              <input type="hidden" name="ssid" value="${escapeAttr(network.ssid)}" data-wifi-ssid>
-              <label data-wifi-password-wrap>
-                Password
-                <input type="password" name="password" placeholder="Enter password" data-wifi-password>
-              </label>
-              <p class="muted" data-wifi-hint></p>
-              <button type="submit" data-action="wifi_connect" data-wifi-submit>Connect</button>
-            </form>
           </div>
         `
           )
@@ -237,35 +210,142 @@ function renderConnectedDevicesContent(connectedDevices) {
   `;
 }
 
+function renderWifiModal() {
+  return `
+    <div class="wifi-modal" data-wifi-modal hidden>
+      <div class="wifi-modal-backdrop" data-wifi-modal-dismiss></div>
+      <section class="card wifi-modal-panel" role="dialog" aria-modal="true" aria-labelledby="wifi-modal-title">
+        <div class="wifi-modal-head">
+          <div class="wifi-modal-copy">
+            <p class="eyebrow">Connect</p>
+            <h3 id="wifi-modal-title" data-wifi-modal-title>Choose a network</h3>
+            <p class="muted wifi-modal-security" data-wifi-modal-security>Password protected</p>
+          </div>
+          <button type="button" class="secondary wifi-close" data-wifi-modal-close>Close</button>
+        </div>
+
+        <form action="/api/wifi/connect" method="post" class="stack wifi-modal-form" data-api-form data-refresh-target="home-wifi" data-wifi-modal-form>
+          <input type="hidden" name="ssid" value="" data-wifi-modal-ssid>
+          <label data-wifi-modal-password-wrap>
+            Password
+            <input type="password" name="password" placeholder="Enter password" autocomplete="current-password" data-wifi-modal-password>
+          </label>
+          <p class="muted" data-wifi-modal-hint>Password is optional for open networks.</p>
+          <div class="wifi-modal-actions">
+            <button type="submit" data-action="wifi_connect" data-wifi-modal-submit>Connect</button>
+            <button type="button" class="secondary" data-wifi-modal-close>Cancel</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  `;
+}
+
 function applyWifiSelectionState(scope = document, selectedSsid = "") {
   const rows = Array.from(scope.querySelectorAll("[data-wifi-select]"));
   rows.forEach((row) => {
     const rowSsid = row.getAttribute("data-ssid") || "";
     const isActive = Boolean(selectedSsid) && rowSsid === selectedSsid;
     row.classList.toggle("is-active", isActive);
-
-    const form = row.parentElement?.querySelector("[data-wifi-form]");
-    if (!(form instanceof HTMLFormElement)) return;
-    form.hidden = !isActive;
-
-    const isOpen = row.getAttribute("data-open") === "true";
-    const passwordWrap = form.querySelector("[data-wifi-password-wrap]");
-    const passwordInput = form.querySelector("[data-wifi-password]");
-    const hint = form.querySelector("[data-wifi-hint]");
-    const submit = form.querySelector("[data-wifi-submit]");
-
-    if (passwordWrap instanceof HTMLElement) passwordWrap.hidden = isOpen;
-    if (passwordInput instanceof HTMLInputElement) {
-      passwordInput.required = !isOpen;
-      passwordInput.placeholder = "Enter password";
-    }
-    if (hint) {
-      hint.textContent = isOpen ? "Open network selected. You can connect right away." : "Enter the Wi-Fi password to connect.";
-    }
-    if (submit instanceof HTMLButtonElement) {
-      submit.disabled = false;
-    }
   });
+}
+
+function getWifiModalElements(scope = document) {
+  return {
+    modal: scope.querySelector("[data-wifi-modal]"),
+    title: scope.querySelector("[data-wifi-modal-title]"),
+    security: scope.querySelector("[data-wifi-modal-security]"),
+    form: scope.querySelector("[data-wifi-modal-form]"),
+    ssidInput: scope.querySelector("[data-wifi-modal-ssid]"),
+    passwordWrap: scope.querySelector("[data-wifi-modal-password-wrap]"),
+    passwordInput: scope.querySelector("[data-wifi-modal-password]"),
+    hint: scope.querySelector("[data-wifi-modal-hint]"),
+    submit: scope.querySelector("[data-wifi-modal-submit]"),
+  };
+}
+
+function syncWifiModalState({ focus = false } = {}) {
+  const { modal, title, security, ssidInput, passwordWrap, passwordInput, hint, submit } = getWifiModalElements();
+  const shouldShow = wifiModalState.isOpen && Boolean(wifiModalState.ssid) && getScreenFromPath(window.location.pathname) === "home";
+
+  document.body.classList.toggle("has-wifi-modal", shouldShow);
+  if (!(modal instanceof HTMLElement)) return;
+
+  modal.hidden = !shouldShow;
+  if (!shouldShow) return;
+
+  if (title instanceof HTMLElement) {
+    title.textContent = wifiModalState.ssid;
+  }
+  if (security instanceof HTMLElement) {
+    security.textContent = wifiModalState.security || (wifiModalState.isOpenNetwork ? "Open network" : "Password protected");
+  }
+  if (ssidInput instanceof HTMLInputElement) {
+    ssidInput.value = wifiModalState.ssid;
+  }
+  if (passwordWrap instanceof HTMLElement) {
+    passwordWrap.hidden = wifiModalState.isOpenNetwork;
+  }
+  if (passwordInput instanceof HTMLInputElement) {
+    passwordInput.required = !wifiModalState.isOpenNetwork;
+    passwordInput.value = wifiModalState.isOpenNetwork ? "" : wifiModalState.password;
+  }
+  if (hint instanceof HTMLElement) {
+    hint.textContent = wifiModalState.isOpenNetwork
+      ? "Open network selected. You can connect right away."
+      : "Enter the Wi-Fi password to connect.";
+  }
+  if (submit instanceof HTMLButtonElement) {
+    submit.disabled = false;
+  }
+
+  if (focus) {
+    window.requestAnimationFrame(() => {
+      if (wifiModalState.isOpenNetwork) {
+        if (submit instanceof HTMLButtonElement) submit.focus();
+        return;
+      }
+      if (passwordInput instanceof HTMLInputElement) {
+        passwordInput.focus();
+      }
+    });
+  }
+}
+
+function openWifiModal({ ssid, security, isOpenNetwork }) {
+  if (!ssid) return;
+
+  const keepPassword = wifiModalState.isOpen && wifiModalState.ssid === ssid;
+  wifiModalState.isOpen = true;
+  wifiModalState.ssid = ssid;
+  wifiModalState.security = security || (isOpenNetwork ? "Open network" : "Password protected");
+  wifiModalState.isOpenNetwork = isOpenNetwork;
+  if (!keepPassword) {
+    wifiModalState.password = "";
+  }
+
+  applyWifiSelectionState(document, ssid);
+  syncWifiModalState({ focus: true });
+}
+
+function closeWifiModal({ restoreFocus = true, clearPassword = true } = {}) {
+  const selectedSsid = wifiModalState.ssid;
+  wifiModalState.isOpen = false;
+  wifiModalState.ssid = "";
+  wifiModalState.security = "";
+  wifiModalState.isOpenNetwork = false;
+  if (clearPassword) {
+    wifiModalState.password = "";
+  }
+
+  syncWifiModalState();
+  applyWifiSelectionState(document, "");
+
+  if (!restoreFocus || !selectedSsid) return;
+  const trigger = document.querySelector(`[data-wifi-select][data-ssid="${CSS.escape(selectedSsid)}"]`);
+  if (trigger instanceof HTMLElement) {
+    trigger.focus();
+  }
 }
 
 function renderHome(data) {
@@ -371,6 +451,8 @@ function renderHome(data) {
         <ul class="status-list">${servicesHtml}</ul>
       </article>
     </section>
+
+    ${renderWifiModal()}
   `;
 }
 
@@ -788,20 +870,24 @@ function renderScreen(screen, payload) {
   if (!root) return;
 
   if (screen === "settings") {
+    closeWifiModal({ restoreFocus: false });
     root.innerHTML = renderSettings(payload);
     hydrateJellyfinStatus();
     return;
   }
   if (screen === "media") {
+    closeWifiModal({ restoreFocus: false });
     root.innerHTML = renderMedia(payload);
     return;
   }
   if (screen === "remote") {
+    closeWifiModal({ restoreFocus: false });
     root.innerHTML = renderRemote(payload);
     return;
   }
   root.innerHTML = renderHome(payload);
-  applyWifiSelectionState(root);
+  applyWifiSelectionState(root, wifiModalState.ssid);
+  syncWifiModalState();
   requestAnimationFrame(relayoutAllPackedGrids);
 }
 
@@ -880,40 +966,42 @@ function stopHomeWifiPolling() {
 
 async function refreshHomeWifiLive() {
   if (getScreenFromPath(window.location.pathname) !== "home") return;
+  if (homeWifiRefreshPromise) return homeWifiRefreshPromise;
 
-  const currentCard = document.querySelector("[data-home-current-network]");
-  const wifiList = document.querySelector("[data-home-wifi-list]");
-  const connectedDevicesCard = document.querySelector("[data-home-connected-devices]");
-  const heroConnected = document.querySelector("[data-home-hero-connected]");
-  if (!(currentCard instanceof HTMLElement) || !(wifiList instanceof HTMLElement) || !(connectedDevicesCard instanceof HTMLElement)) return;
+  homeWifiRefreshPromise = (async () => {
+    const currentCard = document.querySelector("[data-home-current-network]");
+    const wifiList = document.querySelector("[data-home-wifi-list]");
+    const connectedDevicesCard = document.querySelector("[data-home-connected-devices]");
+    const heroConnected = document.querySelector("[data-home-hero-connected]");
+    if (!(currentCard instanceof HTMLElement) || !(wifiList instanceof HTMLElement) || !(connectedDevicesCard instanceof HTMLElement)) return;
 
-  const activeWifiRow = document.querySelector("[data-wifi-select].is-active");
-  const selectedSsid = activeWifiRow instanceof HTMLElement ? activeWifiRow.getAttribute("data-ssid") || "" : "";
-  const passwordInput = activeWifiRow?.parentElement?.querySelector("[data-wifi-password]");
-  const typedPassword = passwordInput instanceof HTMLInputElement ? passwordInput.value : "";
+    try {
+      const response = await fetchJson("/api/home/wifi-live", {
+        headers: { Accept: "application/json" },
+      });
+      if (!response) return;
+      const payload = await response.json();
+      if (getScreenFromPath(window.location.pathname) !== "home") return;
+
+      currentCard.innerHTML = renderCurrentNetworkContent(payload.wifi_current || {});
+      connectedDevicesCard.innerHTML = renderConnectedDevicesContent(payload.connected_devices || []);
+      if (heroConnected instanceof HTMLElement) {
+        heroConnected.textContent = payload.wifi_current?.connected ? payload.wifi_current.ssid : "Not connected";
+      }
+
+      const scanMessage = payload.wifi_scan?.stdout || payload.wifi_scan?.stderr || "No scan data yet.";
+      wifiList.innerHTML = renderWifiNetworksContent(payload.wifi_networks || [], scanMessage);
+      applyWifiSelectionState(document, wifiModalState.ssid);
+      requestAnimationFrame(relayoutAllPackedGrids);
+    } catch (_error) {
+      // Ignore transient polling failures and keep the last rendered Wi-Fi state.
+    }
+  })();
 
   try {
-    const response = await fetchJson("/api/home/wifi-live", {
-      headers: { Accept: "application/json" },
-    });
-    if (!response) return;
-    const payload = await response.json();
-    currentCard.innerHTML = renderCurrentNetworkContent(payload.wifi_current || {});
-    connectedDevicesCard.innerHTML = renderConnectedDevicesContent(payload.connected_devices || []);
-    if (heroConnected instanceof HTMLElement) {
-      heroConnected.textContent = payload.wifi_current?.connected ? payload.wifi_current.ssid : "Not connected";
-    }
-    const scanMessage = payload.wifi_scan?.stdout || payload.wifi_scan?.stderr || "No scan data yet.";
-    wifiList.innerHTML = renderWifiNetworksContent(payload.wifi_networks || [], scanMessage);
-
-    const nextPasswordInput = selectedSsid
-      ? document.querySelector(`[data-wifi-form][data-ssid="${CSS.escape(selectedSsid)}"] [data-wifi-password]`)
-      : null;
-    if (nextPasswordInput instanceof HTMLInputElement) nextPasswordInput.value = typedPassword;
-    applyWifiSelectionState(document, selectedSsid);
-    requestAnimationFrame(relayoutAllPackedGrids);
-  } catch (_error) {
-    // Ignore transient polling failures and keep the last rendered Wi-Fi state.
+    await homeWifiRefreshPromise;
+  } finally {
+    homeWifiRefreshPromise = null;
   }
 }
 
@@ -1072,6 +1160,9 @@ async function submitApiForm(form, submitter) {
       redirectToLogin();
       return;
     }
+    if (payload.ok && payload.action === "wifi_connect") {
+      closeWifiModal({ restoreFocus: false });
+    }
     const handled = await handleActionRefresh(form, payload);
     const desiredRefresh = form.dataset.refresh || payload.refresh;
     if (!handled && payload.ok && desiredRefresh && desiredRefresh === getScreenFromPath(window.location.pathname)) {
@@ -1120,26 +1211,30 @@ function handleClick(event) {
     }
   }
 
+  const wifiModalClose = event.target.closest("[data-wifi-modal-close], [data-wifi-modal-dismiss]");
+  if (wifiModalClose instanceof HTMLElement) {
+    closeWifiModal();
+    return;
+  }
+
   const wifiButton = event.target.closest("[data-wifi-select]");
   if (wifiButton instanceof HTMLElement) {
     const ssid = wifiButton.getAttribute("data-ssid") || "";
-    const alreadyActive = wifiButton.classList.contains("is-active");
-    applyWifiSelectionState(document, alreadyActive ? "" : ssid);
-    if (!alreadyActive) {
-      const form = wifiButton.parentElement?.querySelector("[data-wifi-form]");
-      const passwordInput = form?.querySelector("[data-wifi-password]");
-      const isOpen = wifiButton.getAttribute("data-open") === "true";
-      if (!isOpen && passwordInput instanceof HTMLInputElement) {
-        passwordInput.value = "";
-        passwordInput.focus();
-      }
-    }
+    const security = wifiButton.getAttribute("data-security") || "";
+    const isOpenNetwork = wifiButton.getAttribute("data-open") === "true";
+    openWifiModal({ ssid, security, isOpenNetwork });
+    return;
   }
 }
 
 function handleInput(event) {
   const input = event.target;
   if (!(input instanceof HTMLInputElement)) return;
+
+  if (input.matches("[data-wifi-modal-password]")) {
+    wifiModalState.password = input.value;
+  }
+
   const form = input.closest('form[data-live-search="media"]');
   if (!(form instanceof HTMLFormElement)) return;
   if (input.name !== "q") return;
@@ -1158,6 +1253,12 @@ function handleChange(event) {
   const form = input.closest("form[data-api-form]");
   if (!(form instanceof HTMLFormElement)) return;
   submitApiForm(form, null);
+}
+
+function handleKeydown(event) {
+  if (event.key !== "Escape" || !wifiModalState.isOpen) return;
+  event.preventDefault();
+  closeWifiModal();
 }
 
 function handleSubmit(event) {
@@ -1188,6 +1289,7 @@ function handleSubmit(event) {
 document.addEventListener("click", handleClick);
 document.addEventListener("change", handleChange);
 document.addEventListener("input", handleInput);
+document.addEventListener("keydown", handleKeydown);
 document.addEventListener("submit", handleSubmit);
 window.addEventListener("popstate", () => {
   loadCurrentScreen({ silent: true });
