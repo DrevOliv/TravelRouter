@@ -1,5 +1,5 @@
 from .config import demo_state, load_settings, save_demo_state, update_demo, update_settings
-from run_command import command_result, demo_command_result, extract_url, run_command
+from .run_command import command_result, demo_command_result, extract_url, run_command
 from .jellyfin import jellyfin_image_url, jellyfin_items, jellyfin_system_info, jellyfin_views
 from .playback import (
     all_resume_seconds,
