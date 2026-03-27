@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ..config_store import load_config, save_config
 from ..env import is_demo_mode
-from .command import command_result, demo_command_result
+from run_command import command_result, demo_command_result
 from .jellyfin import jellyfin_url
 
 

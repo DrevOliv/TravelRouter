@@ -1,7 +1,7 @@
 import json
 
 from ..env import is_demo_mode
-from .command import demo_command_result, run_command
+from run_command import demo_command_result, run_command
 from .config import demo_state, load_settings, update_demo
 
 
