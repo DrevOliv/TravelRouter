@@ -13,7 +13,7 @@ router = APIRouter()
     response_model=HomeResponse,
     tags=["home"],
     summary="Get home dashboard data",
-    description="Returns the Home screen payload including current upstream Wi-Fi, scanned networks, service states, and Wi-Fi interface settings.",
+    description="Returns the Home screen payload including current upstream Wi-Fi, scanned networks, connected devices, exit-node choices, and Wi-Fi interface settings.",
 )
 async def api_home():
     return home_payload()

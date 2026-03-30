@@ -13,7 +13,6 @@ from .system_apis import (
     list_import_devices,
     load_settings,
     scan_wifi,
-    systemctl_status,
     tailscale_status,
     transfer_settings_summary,
 )
@@ -102,14 +101,6 @@ def parse_wifi_scan_rows(scan_result: dict) -> list[dict]:
     return networks
 
 
-def current_exit_node_value(tailscale_data: dict, settings: dict) -> str:
-    selected = tailscale_data.get("Self", {}).get("ExitNodeStatus") or {}
-    if selected.get("ID"):
-        peer = (tailscale_data.get("Peer") or {}).get(selected["ID"], {})
-        return (peer.get("DNSName") or peer.get("HostName") or settings["tailscale"]["current_exit_node"]).rstrip(".")
-    return settings["tailscale"]["current_exit_node"]
-
-
 def action_payload(action: str, result: dict, success_message: str, error_message: str, detail: str = "", link: str = "", refresh: str | None = None) -> dict:
     return {
         "ok": result["ok"],
@@ -135,40 +126,23 @@ def wifi_live_payload(upstream_interface: str) -> dict:
 def home_payload() -> dict:
     settings = load_settings()
     wifi_live = wifi_live_payload(settings["wifi"]["upstream_interface"])
-    tailscale = tailscale_status()
-    tailscale_data = parse_tailscale_json(tailscale)
-    services = {
-        "hostapd": systemctl_status("hostapd"),
-        "dnsmasq": systemctl_status("dnsmasq"),
-        "tailscaled": systemctl_status("tailscaled"),
-    }
+    tailscale_data = parse_tailscale_json(tailscale_status())
     return {
         "settings": settings,
         **wifi_live,
-        "tailscale": tailscale,
-        "tailscale_data": tailscale_data,
         "exit_nodes": parse_exit_nodes(tailscale_data),
         "selected_exit_node": settings["tailscale"]["current_exit_node"],
         "exit_node_active": bool((tailscale_data.get("Self", {}).get("ExitNodeStatus") or {}).get("ID")) or bool(settings["tailscale"].get("exit_node_enabled")),
-        "services": services,
     }
 
 
 def settings_payload() -> dict:
     settings = load_settings()
-    tailscale = tailscale_status()
-    tailscale_data = parse_tailscale_json(tailscale)
-    exit_nodes = parse_exit_nodes(tailscale_data)
     jellyfin_configured = bool(
         settings["jellyfin"]["server_url"] and settings["jellyfin"]["api_key"] and settings["jellyfin"]["user_id"]
     )
     return {
         "settings": settings,
-        "tailscale": tailscale,
-        "tailscale_data": tailscale_data,
-        "exit_nodes": exit_nodes,
-        "selected_exit_node": settings["tailscale"]["current_exit_node"],
-        "exit_node_active": bool((tailscale_data.get("Self", {}).get("ExitNodeStatus") or {}).get("ID")) or bool(settings["tailscale"].get("exit_node_enabled")),
         "jellyfin": {
             "configured": jellyfin_configured,
             "ok": False,

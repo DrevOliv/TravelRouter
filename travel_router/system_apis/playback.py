@@ -5,8 +5,8 @@ from pathlib import Path
 
 from ..config_store import load_config, save_config
 from ..env import is_demo_mode
-from .command import command_result, demo_command_result
-from .jellyfin import jellyfin_url
+from .jellyfin import jellyfin_stream_url
+from .run_command import command_result, demo_command_result
 
 
 MPV_SOCKET = "/tmp/pi-travel-router-mpv.sock"
@@ -30,11 +30,9 @@ def play_jellyfin_item(item_id: str, resume: bool = True) -> dict:
         return demo_command_result("demo mpv play", stdout="Playback started")
 
     save_resume_position()
-    play_url = jellyfin_url(f"/Videos/{item_id}/stream")
-    if "?" in play_url:
-        play_url = f"{play_url}&static=true&api_key={config['api_key']}"
-    else:
-        play_url = f"{play_url}?static=true&api_key={config['api_key']}"
+    stream_plan = jellyfin_stream_url(item_id)
+    if not stream_plan["ok"]:
+        return command_result("jellyfin play", stderr=stream_plan["detail"], ok=False)
 
     start_time = load_resume_seconds(item_id) if resume else 0
     Path(MPV_SOCKET).unlink(missing_ok=True)
@@ -44,8 +42,9 @@ def play_jellyfin_item(item_id: str, resume: bool = True) -> dict:
         text=True,
         check=False,
     )
-    result = _spawn_mpv(play_url, start_time)
+    result = _spawn_mpv(stream_plan["url"], start_time)
     if result["ok"]:
+        result["stdout"] = stream_plan["detail"]
         update_playback_state(item_id)
     return result
 

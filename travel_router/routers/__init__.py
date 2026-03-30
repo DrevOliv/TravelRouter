@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends
 
 from ..auth import require_api_auth
 from .api_auth import router as api_auth_router
-from fastapi import APIRouter
 
 from .api_home import router as api_home_router
 from .api_import import router as api_import_router

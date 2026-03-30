@@ -174,6 +174,7 @@ This app does not run a full TV-first frontend. Instead it:
 
 - connects to your Jellyfin server over HTTP or through Tailscale
 - lets you browse media from your phone
+- asks Jellyfin for the best direct-play or transcode URL before playback
 - launches playback on the Raspberry Pi HDMI output using `mpv`
 - exposes simple playback controls from the same web UI
 
@@ -203,8 +204,7 @@ DEMO_MODE=1
 In demo mode:
 
 - Wi-Fi scanning and connecting are mocked
-- Tailscale status, login, and exit node changes are mocked
-- service status is mocked
+- Tailscale exit node data and changes are mocked
 - playback controls are mocked
 - Jellyfin browsing stays real, so you can still browse your actual library
 

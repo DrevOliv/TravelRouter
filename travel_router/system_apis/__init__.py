@@ -1,5 +1,5 @@
 from .config import demo_state, load_settings, save_demo_state, update_demo, update_settings
-from .command import command_result, demo_command_result, extract_url, run_command
+from .run_command import command_result, demo_command_result, extract_url, run_command
 from .imports import (
     browse_import_source,
     ensure_import_dirs,
@@ -22,8 +22,7 @@ from .playback import (
     set_subtitle_track,
     stop_playback,
 )
-from .services import systemctl_status
-from .tailscale import tailscale_disable_exit_node, tailscale_down, tailscale_login, tailscale_status, tailscale_up
+from .tailscale import tailscale_disable_exit_node, tailscale_status, tailscale_up
 from .wifi import (
     ap_connected_devices,
     apply_ap_password,
@@ -68,10 +67,7 @@ __all__ = [
     "set_audio_track",
     "set_subtitle_track",
     "stop_playback",
-    "systemctl_status",
     "tailscale_disable_exit_node",
-    "tailscale_down",
-    "tailscale_login",
     "tailscale_status",
     "tailscale_up",
     "transfer_destination_test",
