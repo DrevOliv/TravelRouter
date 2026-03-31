@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from ..api_models import MetaResponse
 from ..env import is_demo_mode
+from .models import MetaResponse
 
 
 router = APIRouter()

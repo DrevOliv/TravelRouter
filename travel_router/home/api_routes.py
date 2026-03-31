@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Response
 
-from ..api_models import ActionResponse, HomeResponse, WifiConnectBody, WifiLiveResponse
-from ..screen_data import action_payload, home_payload, wifi_live_payload
+from ..common.models import ActionResponse
+from ..common.responses import action_payload
 from ..system_apis import connect_wifi, disconnect_wifi, load_settings, wifi_qr_svg
+from .models import HomeResponse, WifiConnectBody, WifiLiveResponse
+from .system_api import home_payload, wifi_live_payload
 
 
 router = APIRouter()

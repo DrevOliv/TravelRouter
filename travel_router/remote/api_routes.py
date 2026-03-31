@@ -1,8 +1,10 @@
 from fastapi import APIRouter
 
-from ..api_models import ActionResponse, RemoteResponse, SubtitleBody, TrackBody
-from ..screen_data import action_payload, remote_payload
+from ..common.models import ActionResponse
+from ..common.responses import action_payload
 from ..system_apis import pause_playback, seek_relative, set_audio_track, set_subtitle_track, stop_playback
+from .models import RemoteResponse, SubtitleBody, TrackBody
+from .system_api import remote_payload
 
 
 router = APIRouter()
@@ -89,4 +91,10 @@ async def api_remote_audio(body: TrackBody):
 async def api_remote_subtitles(body: SubtitleBody):
     value = "no" if body.track_id == "no" else int(body.track_id)
     result = set_subtitle_track(value)
-    return action_payload("remote_subtitles", result, "Subtitle settings updated", "Subtitle change failed", refresh="remote")
+    return action_payload(
+        "remote_subtitles",
+        result,
+        "Subtitle settings updated",
+        "Subtitle change failed",
+        refresh="remote",
+    )

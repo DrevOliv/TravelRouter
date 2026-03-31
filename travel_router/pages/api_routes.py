@@ -1,36 +1,11 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 
-from ..auth import is_authenticated
+from ..auth_core import is_authenticated
+from .system_api import login_response, shell_response
 
 
 router = APIRouter()
-STATIC_INDEX = Path(__file__).resolve().parent.parent / "static" / "index.html"
-LOGIN_INDEX = Path(__file__).resolve().parent.parent / "static" / "login.html"
-
-
-def shell_response() -> FileResponse:
-    return FileResponse(
-        STATIC_INDEX,
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
-
-
-def login_response() -> FileResponse:
-    return FileResponse(
-        LOGIN_INDEX,
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
 
 
 @router.get("/")

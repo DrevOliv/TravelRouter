@@ -1,54 +1,29 @@
 from fastapi import APIRouter
 
-from ..api_models import (
-    ActionResponse,
-    ApPasswordBody,
-    ApSsidBody,
-    ExitNodeSelectionBody,
-    ExitNodeToggleBody,
-    JellyfinSettingsBody,
-    JellyfinStatusResponse,
-    SettingsResponse,
-    WifiSettingsBody,
-)
-from ..screen_data import action_payload, parse_exit_nodes, parse_tailscale_json, settings_payload
+from ..common.models import ActionResponse, JellyfinStatusResponse
+from ..common.responses import action_payload
 from ..system_apis import (
     apply_ap_password,
     apply_ap_ssid,
     jellyfin_system_info,
     load_settings,
     tailscale_disable_exit_node,
-    tailscale_status,
     tailscale_up,
     update_settings,
 )
+from .models import (
+    ApPasswordBody,
+    ApSsidBody,
+    ExitNodeSelectionBody,
+    ExitNodeToggleBody,
+    JellyfinSettingsBody,
+    SettingsResponse,
+    WifiSettingsBody,
+)
+from .system_api import resolve_saved_exit_node, settings_payload
 
 
 router = APIRouter()
-
-
-def resolve_saved_exit_node(selected: str) -> str:
-    selected = selected.strip()
-    if not selected:
-        return ""
-
-    status = tailscale_status()
-    tailscale_data = parse_tailscale_json(status)
-    exit_nodes = parse_exit_nodes(tailscale_data)
-    for node in exit_nodes:
-        if node["value"] == selected or node["label"] == selected:
-            return node["value"]
-
-    peers = tailscale_data.get("Peer") or {}
-    for peer in peers.values():
-        dns_name = str(peer.get("DNSName") or "").rstrip(".")
-        host_name = str(peer.get("HostName") or "").rstrip(".")
-        tailscale_ips = peer.get("TailscaleIPs") or []
-        candidate_ip = str(tailscale_ips[0]).rstrip(".") if tailscale_ips else ""
-        if selected in {dns_name, host_name} and candidate_ip:
-            return candidate_ip
-
-    return selected
 
 
 @router.get(
@@ -88,7 +63,14 @@ async def api_wifi_settings(body: WifiSettingsBody):
             "ap_interface": body.ap_interface.strip(),
         },
     )
-    return {"ok": True, "action": "wifi_settings", "message": "Wi-Fi interfaces saved", "detail": "", "link": "", "refresh": "settings"}
+    return {
+        "ok": True,
+        "action": "wifi_settings",
+        "message": "Wi-Fi interfaces saved",
+        "detail": "",
+        "link": "",
+        "refresh": "settings",
+    }
 
 
 @router.post(
@@ -101,7 +83,14 @@ async def api_wifi_settings(body: WifiSettingsBody):
 async def api_wifi_ap_ssid(body: ApSsidBody):
     ap_ssid = body.ap_ssid.strip()
     if not ap_ssid:
-        return {"ok": False, "action": "wifi_ap_ssid", "message": "SSID cannot be empty", "detail": "", "link": "", "refresh": None}
+        return {
+            "ok": False,
+            "action": "wifi_ap_ssid",
+            "message": "SSID cannot be empty",
+            "detail": "",
+            "link": "",
+            "refresh": None,
+        }
     result = apply_ap_ssid(ap_ssid)
     return action_payload("wifi_ap_ssid", result, "Private Wi-Fi SSID saved", "Private Wi-Fi SSID failed", refresh="settings")
 
@@ -115,7 +104,13 @@ async def api_wifi_ap_ssid(body: ApSsidBody):
 )
 async def api_wifi_ap_password(body: ApPasswordBody):
     result = apply_ap_password(body.ap_password.strip())
-    return action_payload("wifi_ap_password", result, "Private Wi-Fi password saved", "Private Wi-Fi password failed", refresh="settings")
+    return action_payload(
+        "wifi_ap_password",
+        result,
+        "Private Wi-Fi password saved",
+        "Private Wi-Fi password failed",
+        refresh="settings",
+    )
 
 
 @router.post(
@@ -129,7 +124,14 @@ async def api_wifi_ap_password(body: ApPasswordBody):
 async def api_tailscale_selection(body: ExitNodeSelectionBody):
     selected = body.exit_node.strip()
     if not selected:
-        return {"ok": False, "action": "tailscale_selection", "message": "Choose an exit node first", "detail": "", "link": "", "refresh": None}
+        return {
+            "ok": False,
+            "action": "tailscale_selection",
+            "message": "Choose an exit node first",
+            "detail": "",
+            "link": "",
+            "refresh": None,
+        }
 
     update_settings("tailscale", {"current_exit_node": selected, "exit_node_enabled": False})
     return {"ok": True, "action": "tailscale_selection", "message": "Exit node saved", "detail": "", "link": "", "refresh": "home"}
@@ -148,7 +150,14 @@ async def api_tailscale_toggle(body: ExitNodeToggleBody):
     selected = resolve_saved_exit_node(settings["tailscale"]["current_exit_node"])
     if body.enabled:
         if not selected:
-            return {"ok": False, "action": "tailscale_toggle", "message": "Save an exit node first", "detail": "", "link": "", "refresh": None}
+            return {
+                "ok": False,
+                "action": "tailscale_toggle",
+                "message": "Save an exit node first",
+                "detail": "",
+                "link": "",
+                "refresh": None,
+            }
         result = tailscale_up(selected)
         if result["ok"]:
             update_settings("tailscale", {"current_exit_node": selected, "exit_node_enabled": True})
@@ -177,4 +186,11 @@ async def api_jellyfin_settings(body: JellyfinSettingsBody):
             "device_name": body.device_name.strip(),
         },
     )
-    return {"ok": True, "action": "jellyfin_settings", "message": "Jellyfin settings saved", "detail": "", "link": "", "refresh": "settings"}
+    return {
+        "ok": True,
+        "action": "jellyfin_settings",
+        "message": "Jellyfin settings saved",
+        "detail": "",
+        "link": "",
+        "refresh": "settings",
+    }

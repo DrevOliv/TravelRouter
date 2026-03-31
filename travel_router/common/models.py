@@ -3,60 +3,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class WifiConnectBody(BaseModel):
-    ssid: str = Field(..., description="SSID of the upstream Wi-Fi network to connect to.")
-    password: str = Field("", description="Password for the upstream Wi-Fi network. Leave empty for open networks.")
-
-
-class AuthLoginBody(BaseModel):
-    password: str = Field(..., description="Admin password used to log in to the control panel.")
-
-
-class PasswordChangeBody(BaseModel):
-    new_password: str = Field(..., description="New admin password.")
-    confirm_password: str = Field(..., description="Repeat of the new admin password.")
-
-
-class WifiSettingsBody(BaseModel):
-    upstream_interface: str = Field("wlan0", description="Interface used to join upstream Wi-Fi networks.")
-    ap_interface: str = Field("wlan1", description="Interface used for the private access point.")
-
-
-class ApSsidBody(BaseModel):
-    ap_ssid: str = Field("PiTravelHub", description="SSID broadcast by the private travel-router access point.")
-
-
-class ApPasswordBody(BaseModel):
-    ap_password: str = Field("ChangeThisPassword", description="Password used for the private travel-router access point.")
-
-
-class ExitNodeSelectionBody(BaseModel):
-    exit_node: str = Field("", description="Preferred Tailscale exit node DNS name or IP to save in settings.")
-
-
-class ExitNodeToggleBody(BaseModel):
-    enabled: bool = Field(..., description="Turn the saved exit node on or off.")
-
-
-class JellyfinSettingsBody(BaseModel):
-    server_url: str = Field("", description="Base URL of the Jellyfin server.")
-    api_key: str = Field("", description="Jellyfin API key used for browsing and playback.")
-    user_id: str = Field("", description="Jellyfin user ID for library access.")
-    device_name: str = Field("Pi Travel Router", description="Client device name reported to Jellyfin.")
-
-
-class MediaPlayBody(BaseModel):
-    resume: bool = Field(True, description="Resume playback from the saved position if one exists.")
-
-
-class TrackBody(BaseModel):
-    track_id: int = Field(..., description="Track ID to activate.")
-
-
-class SubtitleBody(BaseModel):
-    track_id: str = Field("no", description='Subtitle track ID, or `"no"` to disable subtitles.')
-
-
 class ActionResponse(BaseModel):
     ok: bool = Field(..., description="Whether the action succeeded.")
     action: str = Field(..., description="Frontend action identifier.")
@@ -64,10 +10,6 @@ class ActionResponse(BaseModel):
     detail: str = Field("", description="Longer detail or command output.")
     link: str = Field("", description="Optional follow-up URL.")
     refresh: str | None = Field(None, description="Suggested screen to refresh after success.")
-
-
-class MetaResponse(BaseModel):
-    demo_mode: bool = Field(..., description="Whether the app is currently running in demo mode.")
 
 
 class CommandResult(BaseModel):
@@ -139,37 +81,6 @@ class JellyfinSummary(BaseModel):
     error: str = Field("", description="Status or error message shown before/after the live check.")
 
 
-class HomeResponse(BaseModel):
-    settings: AppSettings
-    wifi_scan: CommandResult
-    wifi_networks: list[WifiNetwork]
-    wifi_current: WifiCurrent
-    connected_devices: list[ConnectedDevice]
-    exit_nodes: list[ExitNode]
-    selected_exit_node: str = Field("", description="Currently selected exit node value.")
-    exit_node_active: bool = Field(False, description="Whether exit-node routing is currently enabled.")
-
-
-class WifiLiveResponse(BaseModel):
-    wifi_scan: CommandResult
-    wifi_networks: list[WifiNetwork]
-    wifi_current: WifiCurrent
-    connected_devices: list[ConnectedDevice]
-
-
-class SettingsResponse(BaseModel):
-    settings: AppSettings
-    jellyfin: JellyfinSummary
-
-
-class JellyfinStatusResponse(BaseModel):
-    ok: bool = Field(..., description="Whether the Jellyfin status request succeeded.")
-    configured: bool = Field(..., description="Whether the Jellyfin server settings are populated.")
-    reachable: bool = Field(..., description="Whether the Jellyfin server was reachable.")
-    error: str | None = Field(None, description="Error message when the server is unavailable.")
-    data: dict[str, Any] | None = Field(None, description="Raw Jellyfin system info response.")
-
-
 class JellyfinUserData(BaseModel):
     PlaybackPositionTicks: int | None = Field(None, description="Resume position reported by Jellyfin, in ticks.")
 
@@ -195,12 +106,6 @@ class JellyfinItemsResponse(BaseModel):
     data: JellyfinItemsData | None = Field(None, description="Item collection when the request succeeds.")
 
 
-class MediaResponse(BaseModel):
-    search_term: str = Field("", description="Current search term.")
-    parent_id: str = Field("", description="Current Jellyfin parent/library folder ID.")
-    items: JellyfinItemsResponse
-
-
 class PlaybackTrack(BaseModel):
     id: int = Field(..., description="Track ID reported by the playback backend.")
     lang: str = Field(..., description="Language code.")
@@ -220,5 +125,9 @@ class PlaybackState(BaseModel):
     resume_seconds: int = Field(0, description="Saved resume position for the active item.")
 
 
-class RemoteResponse(BaseModel):
-    playback_state: PlaybackState
+class JellyfinStatusResponse(BaseModel):
+    ok: bool = Field(..., description="Whether the Jellyfin status request succeeded.")
+    configured: bool = Field(..., description="Whether the Jellyfin server settings are populated.")
+    reachable: bool = Field(..., description="Whether the Jellyfin server was reachable.")
+    error: str | None = Field(None, description="Error message when the server is unavailable.")
+    data: dict[str, Any] | None = Field(None, description="Raw Jellyfin system info response.")

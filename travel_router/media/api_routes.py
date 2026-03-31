@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Query
 
-from ..api_models import ActionResponse, MediaPlayBody, MediaResponse
-from ..screen_data import action_payload, media_payload
+from ..common.models import ActionResponse
+from ..common.responses import action_payload
 from ..system_apis import play_jellyfin_item
+from .models import MediaPlayBody, MediaResponse
+from .system_api import media_payload
 
 
 router = APIRouter()
