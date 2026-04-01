@@ -1099,6 +1099,151 @@ button.danger {
   color: var(--muted);
 }
 
+.backup-shell,
+.backup-job-list,
+.drives-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.drives-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.drive-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 24px;
+  border: 1px solid rgba(39, 57, 60, 0.1);
+  background: rgba(255, 252, 247, 0.88);
+  box-shadow: var(--shadow-soft);
+}
+
+.drive-card-head,
+.partition-item {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.drive-card-head h3,
+.backup-empty h3 {
+  margin: 0 0 0.25rem;
+}
+
+.drive-card-head p,
+.backup-empty p {
+  margin: 0;
+}
+
+.partition-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.partition-item {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(39, 57, 60, 0.08);
+  background: #fffdf9;
+}
+
+.partition-item div {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.partition-item small,
+.partition-item span {
+  color: var(--muted);
+}
+
+.partition-item span {
+  text-align: right;
+  font-size: 0.84rem;
+}
+
+.backup-job-card {
+  gap: 1rem;
+}
+
+.backup-job-head {
+  align-items: center;
+}
+
+.backup-progress {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.backup-progress-bar {
+  width: 100%;
+  height: 0.78rem;
+  border-radius: 999px;
+  background: rgba(17, 109, 110, 0.12);
+  overflow: hidden;
+}
+
+.backup-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+}
+
+.backup-progress-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.backup-progress-copy strong {
+  color: var(--ink);
+}
+
+.backup-stat-list li {
+  align-items: center;
+}
+
+.backup-terminal {
+  margin: 0;
+}
+
+.backup-terminal-error {
+  border-color: rgba(184, 75, 61, 0.16);
+  background: #fff2ee;
+  color: #8a3c33;
+}
+
+.backup-status.is-running,
+.backup-status.is-starting {
+  background: rgba(17, 109, 110, 0.12);
+  color: var(--accent-strong);
+}
+
+.backup-status.is-done {
+  background: rgba(45, 127, 85, 0.12);
+  color: var(--ok);
+}
+
+.backup-status.is-error,
+.backup-status.is-cancelled {
+  background: rgba(184, 75, 61, 0.12);
+  color: var(--danger);
+}
+
+.backup-empty {
+  min-height: 12rem;
+  place-content: center;
+}
+
 .empty-state {
   text-align: center;
 }
@@ -1161,7 +1306,7 @@ button.danger {
     bottom: 0.55rem;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.45rem;
     padding: 0.48rem;
     border: 1px solid rgba(39, 57, 60, 0.12);

@@ -1,5 +1,6 @@
 const SCREEN_TITLES = {
   home: "Home",
+  backup: "Files",
   media: "Media",
   remote: "Remote",
   settings: "Settings",
@@ -8,7 +9,15 @@ const SCREEN_TITLES = {
 let mediaSearchTimer = null;
 let homeWifiPollTimer = null;
 let homeWifiRefreshPromise = null;
+let backupPollTimer = null;
+let backupRefreshPromise = null;
 let screenLoadController = null;
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 const wifiModalState = {
   isOpen: false,
   ssid: "",
@@ -19,6 +28,7 @@ const wifiModalState = {
 
 function redirectToLogin() {
   stopHomeWifiPolling();
+  stopBackupPolling();
   window.location.href = "/login";
 }
 
@@ -50,6 +60,7 @@ function formToJson(form) {
 }
 
 function getScreenFromPath(pathname) {
+  if (pathname === "/backup") return "backup";
   if (pathname === "/settings") return "settings";
   if (pathname === "/media") return "media";
   if (pathname === "/remote") return "remote";
@@ -58,10 +69,35 @@ function getScreenFromPath(pathname) {
 
 function getApiUrl(screen) {
   const url = new URL(window.location.href);
+  if (screen === "backup") return "/api/backup";
   if (screen === "settings") return "/api/settings";
   if (screen === "media") return `/api/media${url.search}`;
   if (screen === "remote") return "/api/remote";
   return "/api/home";
+}
+
+function formatDateTime(value) {
+  if (!value) return "In progress";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return escapeHtml(value);
+  return dateTimeFormatter.format(date);
+}
+
+function formatTransportLabel(value) {
+  if (!value) return "Unknown bus";
+  if (value === "usb") return "USB";
+  if (value === "sata") return "SATA";
+  if (value === "nvme") return "NVMe";
+  return String(value).toUpperCase();
+}
+
+function formatJobStatus(status) {
+  if (status === "starting") return "Preparing";
+  if (status === "running") return "Running";
+  if (status === "done") return "Done";
+  if (status === "error") return "Error";
+  if (status === "cancelled") return "Cancelled";
+  return status || "Unknown";
 }
 
 function updateFeedback(payload) {
@@ -879,6 +915,182 @@ function renderRemote(data) {
   `;
 }
 
+function renderDriveCard(drive, activeDevices) {
+  const partitions = Array.isArray(drive.partitions) ? drive.partitions : [];
+  const isBusy = activeDevices.has(drive.name);
+  const title = drive.label || drive.name || "Drive";
+  const subtitle = [drive.name, drive.size].filter(Boolean).join(" · ");
+
+  return `
+    <article class="drive-card">
+      <div class="drive-card-head">
+        <div>
+          <p class="eyebrow">Drive</p>
+          <h3>${escapeHtml(title)}</h3>
+          <p class="muted">${escapeHtml(subtitle || "Block device")}</p>
+        </div>
+        <span class="status-chip">${escapeHtml(formatTransportLabel(drive.transport))}</span>
+      </div>
+
+      ${
+        partitions.length
+          ? `
+            <ul class="partition-list">
+              ${partitions
+                .map(
+                  (partition) => `
+                    <li class="partition-item">
+                      <div>
+                        <strong>${escapeHtml(partition.name || "Partition")}</strong>
+                        <small>${escapeHtml([partition.size, partition.fstype].filter(Boolean).join(" · ") || "Unknown size")}</small>
+                      </div>
+                      <span>${escapeHtml(partition.mountpoint || "Not mounted")}</span>
+                    </li>
+                  `
+                )
+                .join("")}
+            </ul>
+          `
+          : `<p class="muted">No partitions detected on this drive yet.</p>`
+      }
+
+      <form
+        action="/api/backup/start"
+        method="post"
+        class="stack"
+        data-api-form
+        data-refresh-target="backup-state"
+        data-success-message="Backup started"
+      >
+        <input type="hidden" name="device" value="${escapeAttr(drive.name || "")}">
+        <button type="submit" data-action="backup_start" ${isBusy ? "disabled" : ""}>${isBusy ? "Backup running" : "Start backup"}</button>
+      </form>
+    </article>
+  `;
+}
+
+function renderBackupJob(job) {
+  const status = String(job.status || "");
+  const progress = Math.max(0, Math.min(100, Number(job.percent || 0)));
+  const progressWidth = status === "starting" && progress === 0 ? 4 : progress;
+  const isActive = status === "starting" || status === "running";
+  const statusClass = `is-${escapeAttr(status || "unknown")}`;
+  const fileProgress =
+    typeof job.total_files === "number" && job.total_files > 0
+      ? `${job.files_transferred || 0} / ${job.total_files} files`
+      : `${job.files_transferred || 0} files`;
+
+  return `
+    <article class="card backup-job-card">
+      <div class="section-head backup-job-head">
+        <div>
+          <p class="eyebrow">Job</p>
+          <h3>${escapeHtml(job.device || "Unknown drive")}</h3>
+          <p class="muted">Started ${escapeHtml(formatDateTime(job.started_at))}</p>
+        </div>
+        <span class="status-chip backup-status ${statusClass}">${escapeHtml(formatJobStatus(status))}</span>
+      </div>
+
+      <div class="backup-progress">
+        <div class="backup-progress-bar">
+          <span style="width: ${progressWidth}%"></span>
+        </div>
+        <div class="backup-progress-copy">
+          <strong>${escapeHtml(progress)}%</strong>
+          <span>${escapeHtml(job.bytes_transferred_human || "0 B")} transferred</span>
+        </div>
+      </div>
+
+      <ul class="status-list compact-list backup-stat-list">
+        <li><span>Speed</span><strong>${escapeHtml(job.speed || (isActive ? "Waiting for data" : "Finished"))}</strong></li>
+        <li><span>ETA</span><strong>${escapeHtml(job.eta || (isActive ? "--:--:--" : "Complete"))}</strong></li>
+        <li><span>Files</span><strong>${escapeHtml(fileProgress)}</strong></li>
+        <li><span>Finished</span><strong>${escapeHtml(job.finished_at ? formatDateTime(job.finished_at) : "Still running")}</strong></li>
+      </ul>
+
+      ${job.current_file ? `<div class="terminal backup-terminal">${escapeHtml(job.current_file)}</div>` : ""}
+      ${job.error ? `<div class="terminal backup-terminal backup-terminal-error">${escapeHtml(job.error)}</div>` : ""}
+
+      <form
+        action="/api/backup/jobs/${encodeURIComponent(job.job_id)}/stop"
+        method="post"
+        class="stack"
+        data-api-form
+        data-refresh-target="backup-state"
+        data-success-message="${isActive ? "Backup stopped" : "Job removed"}"
+      >
+        <button type="submit" class="${isActive ? "danger" : "secondary"}">${isActive ? "Stop job" : "Remove job"}</button>
+      </form>
+    </article>
+  `;
+}
+
+function renderBackup(data) {
+  const drives = Array.isArray(data.drives) ? data.drives : [];
+  const jobs = Array.isArray(data.jobs) ? [...data.jobs] : [];
+  jobs.sort((left, right) => new Date(right.started_at || 0).getTime() - new Date(left.started_at || 0).getTime());
+
+  const activeJobs = jobs.filter((job) => job.status === "starting" || job.status === "running");
+  const completedJobs = jobs.filter((job) => job.status === "done");
+  const activeDevices = new Set(activeJobs.map((job) => job.device));
+  const latestJob = jobs[0] || null;
+
+  return `
+    <section class="card hero page-hero">
+      <div class="hero-copy">
+        <h2>Files</h2>
+        <p class="media-subcopy">Start rsync backups for connected drives and watch each transfer in real time.</p>
+      </div>
+      <div class="hero-side">
+        <div class="mini-stat">
+          <span class="mini-stat-label">Drives</span>
+          <strong>${escapeHtml(drives.length)}</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="mini-stat-label">Running jobs</span>
+          <strong>${escapeHtml(activeJobs.length)}</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="mini-stat-label">Latest</span>
+          <strong>${escapeHtml(latestJob ? latestJob.device || "Backup" : "No jobs yet")}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="backup-shell">
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Sources</p>
+            <h3>Connected drives</h3>
+          </div>
+          <span class="status-chip">${escapeHtml(`${drives.length} detected`)}</span>
+        </div>
+        ${
+          drives.length
+            ? `<div class="drives-grid">${drives.map((drive) => renderDriveCard(drive, activeDevices)).join("")}</div>`
+            : `<section class="empty-state backup-empty"><h3>No drives found</h3><p class="muted">Attach a drive and reload this page to start a backup.</p></section>`
+        }
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Activity</p>
+            <h3>Backup jobs</h3>
+          </div>
+          <span class="status-chip">${escapeHtml(`${activeJobs.length} active · ${completedJobs.length} done`)}</span>
+        </div>
+        ${
+          jobs.length
+            ? `<div class="backup-job-list">${jobs.map((job) => renderBackupJob(job)).join("")}</div>`
+            : `<section class="empty-state backup-empty"><h3>No backup jobs yet</h3><p class="muted">Choose a drive above to launch the first rsync job.</p></section>`
+        }
+      </section>
+    </section>
+  `;
+}
+
 function renderScreen(screen, payload) {
   const root = document.querySelector("#app-root");
   if (!root) return;
@@ -897,6 +1109,11 @@ function renderScreen(screen, payload) {
   if (screen === "remote") {
     closeWifiModal({ restoreFocus: false });
     root.innerHTML = renderRemote(payload);
+    return;
+  }
+  if (screen === "backup") {
+    closeWifiModal({ restoreFocus: false });
+    root.innerHTML = renderBackup(payload);
     return;
   }
   root.innerHTML = renderHome(payload);
@@ -936,6 +1153,24 @@ async function refreshRemoteState() {
   renderScreen("remote", payload);
 }
 
+async function refreshBackupState() {
+  if (getScreenFromPath(window.location.pathname) !== "backup") return;
+  if (backupRefreshPromise) return backupRefreshPromise;
+
+  backupRefreshPromise = (async () => {
+    const payload = await fetchScreenPayload("backup");
+    if (!payload) return;
+    if (getScreenFromPath(window.location.pathname) !== "backup") return;
+    renderScreen("backup", payload);
+  })();
+
+  try {
+    await backupRefreshPromise;
+  } finally {
+    backupRefreshPromise = null;
+  }
+}
+
 async function handleActionRefresh(form, payload) {
   const refreshTarget = form.dataset.refreshTarget || "";
   if (refreshTarget === "home-wifi") {
@@ -948,6 +1183,10 @@ async function handleActionRefresh(form, payload) {
   }
   if (refreshTarget === "remote-state") {
     await refreshRemoteState();
+    return true;
+  }
+  if (refreshTarget === "backup-state") {
+    await refreshBackupState();
     return true;
   }
 
@@ -968,6 +1207,10 @@ async function handleActionRefresh(form, payload) {
     hydrateJellyfinStatus();
     return true;
   }
+  if (action === "backup_start" || action === "backup_stop") {
+    await refreshBackupState();
+    return true;
+  }
   return false;
 }
 
@@ -976,6 +1219,21 @@ function stopHomeWifiPolling() {
     window.clearInterval(homeWifiPollTimer);
     homeWifiPollTimer = null;
   }
+}
+
+function stopBackupPolling() {
+  if (backupPollTimer !== null) {
+    window.clearInterval(backupPollTimer);
+    backupPollTimer = null;
+  }
+}
+
+function startBackupPolling() {
+  stopBackupPolling();
+  if (getScreenFromPath(window.location.pathname) !== "backup") return;
+  backupPollTimer = window.setInterval(() => {
+    refreshBackupState();
+  }, 2000);
 }
 
 async function refreshHomeWifiLive() {
@@ -1057,9 +1315,15 @@ async function loadCurrentScreen(options = {}) {
     } else {
       stopHomeWifiPolling();
     }
+    if (screen === "backup") {
+      startBackupPolling();
+    } else {
+      stopBackupPolling();
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return;
     stopHomeWifiPolling();
+    stopBackupPolling();
     renderError(String(error));
   } finally {
     setRootBusy(false);
@@ -1167,7 +1431,8 @@ async function submitApiForm(form, submitter) {
       },
     });
     if (!response) return;
-    const payload = await response.json();
+    const rawPayload = await response.json();
+    const payload = normalizeApiPayload(form, response, rawPayload);
     updateFeedback(payload);
     flashActionSuccess(submitter, payload.ok);
     if (payload.ok && payload.action === "auth_logout") {
@@ -1196,6 +1461,41 @@ async function submitApiForm(form, submitter) {
       submitter.textContent = originalText;
     }
   }
+}
+
+function normalizeApiPayload(form, response, payload) {
+  const normalized = payload && typeof payload === "object" ? { ...payload } : {};
+  if (typeof normalized.ok !== "boolean") {
+    normalized.ok = response.ok;
+  }
+  if (!normalized.action) {
+    normalized.action = form.dataset.actionName || "";
+  }
+  if (!normalized.detail) {
+    if (normalized.error) {
+      normalized.detail = normalized.error;
+    } else if (typeof normalized.message === "string" && !normalized.ok) {
+      normalized.detail = normalized.message;
+    } else if (typeof payload?.detail === "string" && payload.detail) {
+      normalized.detail = payload.detail;
+    } else if (normalized.job_id) {
+      normalized.detail = `Job ${normalized.job_id} created.`;
+    } else {
+      normalized.detail = "";
+    }
+  }
+  if (!normalized.message) {
+    normalized.message = normalized.ok
+      ? (form.dataset.successMessage || "Saved")
+      : (normalized.detail || "Request failed");
+  }
+  if (typeof normalized.link !== "string") {
+    normalized.link = "";
+  }
+  if (!("refresh" in normalized)) {
+    normalized.refresh = form.dataset.refresh || null;
+  }
+  return normalized;
 }
 
 async function loadMeta() {
@@ -1311,6 +1611,9 @@ window.addEventListener("popstate", () => {
 window.addEventListener("resize", () => {
   requestAnimationFrame(relayoutAllPackedGrids);
 });
-window.addEventListener("beforeunload", stopHomeWifiPolling);
+window.addEventListener("beforeunload", () => {
+  stopHomeWifiPolling();
+  stopBackupPolling();
+});
 document.addEventListener("DOMContentLoaded", loadMeta);
 document.addEventListener("DOMContentLoaded", loadCurrentScreen);

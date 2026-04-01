@@ -1,6 +1,6 @@
 from fastapi import Request
 
-from ..auth_core import SESSION_KEY, change_password, verify_password
+from .core import SESSION_KEY, change_password, verify_password
 
 
 def login(request: Request, password: str) -> dict:

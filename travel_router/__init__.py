@@ -4,16 +4,12 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from .auth import router as auth_router
-from .auth_core import ensure_auth_config, get_session_secret, require_api_auth
+from .auth import ensure_auth_config, get_session_secret, require_api_auth
 from .env import load_dotenv
-from .home import router as home_router
-from .media import router as media_router
 from .meta import router as meta_router
+from .pages import protected_api as pages_protected_api
+from .pages import public_api as pages_public_api
 from .pages import router as pages_router
-from .remote import router as remote_router
-from .rsync import router as rsync_router
-from .settings import router as settings_router
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -34,13 +30,9 @@ def create_app() -> FastAPI:
     protected_api = APIRouter(dependencies=[Depends(require_api_auth)])
 
     router.include_router(pages_router)
-    api.include_router(auth_router)
+    api.include_router(pages_public_api)
     protected_api.include_router(meta_router)
-    protected_api.include_router(home_router)
-    protected_api.include_router(settings_router)
-    protected_api.include_router(media_router)
-    protected_api.include_router(remote_router)
-    protected_api.include_router(rsync_router)
+    protected_api.include_router(pages_protected_api)
     api.include_router(protected_api)
 
     app = FastAPI(

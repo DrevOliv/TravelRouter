@@ -1,3 +1,18 @@
-from .api_routes import router
+from .core import SESSION_KEY, change_password, ensure_auth_config, get_session_secret, is_authenticated, require_api_auth, verify_password
+from .models import AuthLoginBody, PasswordChangeBody
+from .system_api import login, logout, update_password
 
-__all__ = ["router"]
+__all__ = [
+    "SESSION_KEY",
+    "AuthLoginBody",
+    "PasswordChangeBody",
+    "change_password",
+    "ensure_auth_config",
+    "get_session_secret",
+    "is_authenticated",
+    "login",
+    "logout",
+    "require_api_auth",
+    "update_password",
+    "verify_password",
+]
