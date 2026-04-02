@@ -10,6 +10,17 @@ class JellyfinConfig(BaseModel):
     device_name: str = Field("", description="Configured Jellyfin device name.")
 
 
+class JellyfinSettingsBody(BaseModel):
+    server_url: str = Field("", description="Base URL of the Jellyfin server.")
+    api_key: str = Field("", description="Jellyfin API key used for browsing and playback.")
+    user_id: str = Field("", description="Jellyfin user ID for library access.")
+    device_name: str = Field("Pi Travel Router", description="Client device name reported to Jellyfin.")
+
+
+class MediaPlayBody(BaseModel):
+    resume: bool = Field(True, description="Resume playback from the saved position if one exists.")
+
+
 class JellyfinSummary(BaseModel):
     configured: bool = Field(..., description="Whether enough Jellyfin settings exist to attempt a connection.")
     ok: bool = Field(..., description="Whether the live Jellyfin check succeeded.")

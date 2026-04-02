@@ -1,6 +1,24 @@
 from pydantic import BaseModel, Field
 
 
+class WifiConnectBody(BaseModel):
+    ssid: str = Field(..., description="SSID of the upstream Wi-Fi network to connect to.")
+    password: str = Field("", description="Password for the upstream Wi-Fi network. Leave empty for open networks.")
+
+
+class WifiSettingsBody(BaseModel):
+    upstream_interface: str = Field("wlan0", description="Interface used to join upstream Wi-Fi networks.")
+    ap_interface: str = Field("wlan1", description="Interface used for the private access point.")
+
+
+class ApSsidBody(BaseModel):
+    ap_ssid: str = Field("PiTravelHub", description="SSID broadcast by the private travel-router access point.")
+
+
+class ApPasswordBody(BaseModel):
+    ap_password: str = Field("ChangeThisPassword", description="Password used for the private travel-router access point.")
+
+
 class WifiNetwork(BaseModel):
     ssid: str = Field(..., description="Network SSID.")
     signal: int = Field(..., description="Signal strength percentage.")

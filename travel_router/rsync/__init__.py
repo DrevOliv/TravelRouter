@@ -1,3 +1,4 @@
+from .api_files import router
 from .drives import list_drives
 from .models import (
     Drive,
@@ -29,6 +30,7 @@ __all__ = [
     "get_all_jobs",
     "get_job",
     "list_drives",
+    "router",
     "start_backup",
     "stop_job",
 ]

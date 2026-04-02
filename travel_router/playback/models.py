@@ -1,6 +1,14 @@
 from pydantic import BaseModel, Field
 
 
+class TrackBody(BaseModel):
+    track_id: int = Field(..., description="Track ID to activate.")
+
+
+class SubtitleBody(BaseModel):
+    track_id: str = Field("no", description='Subtitle track ID, or `"no"` to disable subtitles.')
+
+
 class PlaybackTrack(BaseModel):
     id: int = Field(..., description="Track ID reported by the playback backend.")
     lang: str = Field(..., description="Language code.")

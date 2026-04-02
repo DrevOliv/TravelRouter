@@ -5,11 +5,6 @@ from ...tailscale.models import ExitNode
 from ...wifi.models import ConnectedDevice, WifiCurrent, WifiNetwork
 
 
-class WifiConnectBody(BaseModel):
-    ssid: str = Field(..., description="SSID of the upstream Wi-Fi network to connect to.")
-    password: str = Field("", description="Password for the upstream Wi-Fi network. Leave empty for open networks.")
-
-
 class HomeResponse(BaseModel):
     settings: AppSettings
     wifi_scan: CommandResult
